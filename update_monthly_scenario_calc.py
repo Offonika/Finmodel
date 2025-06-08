@@ -151,6 +151,7 @@ def main():
         # 8. Основной расчет
         print('🔄 Начинаем обработку строк...')
         out = []
+        skipped = 0
         for rowIdx, ps in enumerate(sales_data):
             org = ps[pIdx['Организация']]
             art = ps[pIdx['Артикул_поставщика']]
@@ -162,6 +163,9 @@ def main():
             pr    = rev_data[rowIdx]
             cKey  = f"{org}|{art}"
             unitC = cogs.get(cKey, {'rub': 0, 'rubWo': 0})
+            if cKey not in cogs:
+                print(f'Skip {art} ({org}) – no COGS found')
+                skipped += 1
 
             for idx, mKey in enumerate(MONTHS):
                 qty = to_num(ps[pIdx.get(mKey, -1)]) if mKey in pIdx else 0
@@ -186,6 +190,8 @@ def main():
                 ])
 
         print(f'✅ Обработка завершена. Всего строк для вывода: {len(out)}')
+        if skipped:
+            print(f'Skipped items due to missing COGS: {skipped}')
 
         # 9. Корректное формирование и запись умной таблицы
         hdr = [
