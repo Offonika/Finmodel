@@ -113,7 +113,8 @@ def main():
     idxC = {h: i for i, h in enumerate(price_df.columns)}
     idxD = {h: i for i, h in enumerate(duty_df.columns)}
 
-    price_dict = {str(r['Артикул_поставщика']): r for _, r in price_df.iterrows()}
+    price_dict = {str(r['Артикул_поставщика']).strip().upper(): r for _, r in price_df.iterrows()}
+
     duty_dict = {str(r['Предмет']): r for _, r in duty_df.iterrows()}
 
     result_ws = None
@@ -147,6 +148,21 @@ def main():
         print('→ Заголовок записан, таблица очищена')
         set_progress(result_ws, 1)
 
+    # --- Диагностика ---
+    print(f'Всего товаров: {len(prod_df)}, Закупочных цен: {len(price_df)}')
+
+    # Список артикулов из price_dict
+    all_price_keys = set(price_dict.keys())
+
+    # Список артикулов из Номенклатуры
+    all_product_keys = set(str(x).strip().upper() for x in prod_df['Артикул_поставщика'])
+
+    # Артикулы без закупочной цены
+    not_found = all_product_keys - all_price_keys
+    print(f'❗ Не найдены закупочные цены для {len(not_found)} товаров. Примеры: {list(not_found)[:10]}')
+
+
+
     n = len(prod_df)
     print(f'→ Всего товаров: {n}, стартовый индекс: {start_idx}')
 
@@ -159,7 +175,8 @@ def main():
         for i in range(idx, batch_end):
             r = prod_df.iloc[i]
             org = r['Организация']
-            vendor = r['Артикул_поставщика']
+            vendor = str(r['Артикул_поставщика']).strip().upper()
+
             subject = r['Предмет']
             name = r['Название']
             weight = safe_float(r['Вес_брутто'])
