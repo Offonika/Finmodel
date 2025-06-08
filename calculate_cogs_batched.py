@@ -18,7 +18,7 @@ TABLE_NAME     = 'CogsTable'
 TABLE_STYLE    = 'TableStyleMedium7'
 PROGRESS_CELL  = 'Z1'  # Можно скрыто хранить прогресс для батча
 
-BATCH_SIZE = 1000
+BATCH_SIZE = 1000  # Объём одной порции для записи в Excel
 
 def get_workbook():
     try:
@@ -152,87 +152,89 @@ def main():
 
     processed = 0
     skipped = 0
-    batch = []
-    for idx in range(start_idx-1, min(n, start_idx-1+BATCH_SIZE)):
-        r = prod_df.iloc[idx]
-        org = r['Организация']
-        vendor = r['Артикул_поставщика']
-        subject = r['Предмет']
-        name = r['Название']
-        weight = safe_float(r['Вес_брутто'])
+    idx = start_idx - 1
+    while idx < n:
+        batch_end = min(n, idx + BATCH_SIZE)
+        batch = []
+        for i in range(idx, batch_end):
+            r = prod_df.iloc[i]
+            org = r['Организация']
+            vendor = r['Артикул_поставщика']
+            subject = r['Предмет']
+            name = r['Название']
+            weight = safe_float(r['Вес_брутто'])
 
-        price_row = price_dict.get(str(vendor))
-        if price_row is None or (hasattr(price_row, "empty") and price_row.empty):
-            skipped += 1
-            continue
+            price_row = price_dict.get(str(vendor))
+            if price_row is None or (hasattr(price_row, 'empty') and price_row.empty):
+                print(f'Skip {vendor} ({org}) – no purchase price found')
+                skipped += 1
+                continue
 
+            price_val = safe_float(price_row.get('Закуп_Цена'))
+            currency = price_row.get('Валюта')
+            if currency == 'USD':
+                rate = global_params['usdRate']
+            elif currency == 'CNY':
+                rate = global_params['cnyRate']
+            else:
+                rate = 1
+            purchase_rub = price_val * rate
 
-        price_val = safe_float(price_row.get('Закуп_Цена'))
-        currency = price_row.get('Валюта')
-        if currency == 'USD':
-            rate = global_params['usdRate']
-        elif currency == 'CNY':
-            rate = global_params['cnyRate']
+            duty_row = duty_dict.get(subject)
+            logistics_mode = get_logistics_mode(org, settings_ws)
+            logistics_rate_per_kg = global_params['cargoRatePerKg'] if logistics_mode == 'Карго' else global_params['whiteRatePerKg']
+            logistics_rub = weight * logistics_rate_per_kg * global_params['usdRate']
+
+            duty_rate = 0
+            if logistics_mode == 'Белая' and duty_row is not None:
+                duty_rate_val = duty_row.get('Пошлина')
+                if isinstance(duty_rate_val, str):
+                    duty_rate = float(duty_rate_val.replace('%', '').replace(',', '.')) / 100
+                elif isinstance(duty_rate_val, (int, float)):
+                    duty_rate = duty_rate_val / 100 if duty_rate_val > 1 else duty_rate_val
+            duty_rub = purchase_rub * duty_rate
+
+            vat_rub = (purchase_rub + duty_rub + logistics_rub) * global_params['ndsRateWhite'] if logistics_mode == 'Белая' else 0
+            total_cogs = purchase_rub + duty_rub + logistics_rub + vat_rub
+            cogs_without_vat = total_cogs - vat_rub
+
+            batch.append([
+                org,
+                vendor,
+                subject,
+                name,
+                round(purchase_rub),
+                round(logistics_rub),
+                round(duty_rub),
+                round(vat_rub),
+                round(total_cogs),
+                round(cogs_without_vat),
+                round(vat_rub)
+            ])
+            processed += 1
+
+        if batch:
+            first_row = result_ws.range('A1').end('down').row + 1 if result_ws.range('A1').end('down').row > 1 else 2
+            result_ws.range(first_row, 1).value = batch
+            print(f'→ В таблицу добавлено строк: {len(batch)}')
         else:
-            rate = 1
-        purchase_rub = price_val * rate
+            print('→ Нет новых строк для записи')
 
-        duty_row = duty_dict.get(subject)
-        logistics_mode = get_logistics_mode(org, settings_ws)
-        logistics_rate_per_kg = global_params['cargoRatePerKg'] if logistics_mode == 'Карго' else global_params['whiteRatePerKg']
-        logistics_rub = weight * logistics_rate_per_kg * global_params['usdRate']
+        idx = batch_end
+        set_progress(result_ws, idx + 1)
 
-        duty_rate = 0
-        if logistics_mode == 'Белая' and duty_row is not None:
-            duty_rate_val = duty_row.get('Пошлина')
-            if isinstance(duty_rate_val, str):
-                duty_rate = float(duty_rate_val.replace('%', '').replace(',', '.')) / 100
-            elif isinstance(duty_rate_val, (int, float)):
-                duty_rate = duty_rate_val / 100 if duty_rate_val > 1 else duty_rate_val
-        duty_rub = purchase_rub * duty_rate
-
-        vat_rub = (purchase_rub + duty_rub + logistics_rub) * global_params['ndsRateWhite'] if logistics_mode == 'Белая' else 0
-        total_cogs = purchase_rub + duty_rub + logistics_rub + vat_rub
-        cogs_without_vat = total_cogs - vat_rub
-
-        batch.append([
-            org,
-            vendor,
-            subject,
-            name,
-            round(purchase_rub),
-            round(logistics_rub),
-            round(duty_rub),
-            round(vat_rub),
-            round(total_cogs),
-            round(cogs_without_vat),
-            round(vat_rub)
-        ])
-        processed += 1
-
-    if batch:
-        first_row = result_ws.range('A1').end('down').row + 1 if start_idx != 1 else 2
-        result_ws.range(first_row, 1).value = batch
-        print(f'→ В таблицу добавлено строк: {len(batch)}')
-    else:
-        print('→ Нет новых строк для записи')
-
-    if start_idx-1+BATCH_SIZE < n:
-        set_progress(result_ws, start_idx+BATCH_SIZE)
-        print(f'→ Для продолжения расчёта запустите функцию ещё раз (прогресс {start_idx+BATCH_SIZE}/{n})')
-    else:
-        clear_progress(result_ws)
-        for tbl in result_ws.tables:
-            if tbl.name == TABLE_NAME:
-                tbl.delete()
-        last_row = result_ws.range('A1').end('down').row
-        rng = result_ws.range((1,1), (last_row, len(header)))
-        result_ws.tables.add(rng, name=TABLE_NAME, table_style_name=TABLE_STYLE, has_headers=True)
-        result_ws.range('A1').expand().columns.autofit()
-        result_ws.api.Rows(1).Font.Bold = True
-        print(f'→ Расчёт завершён и таблица стилизована (итого строк: {last_row-1})')
-        if app: wb.save()
-    if app: wb.save(); app.quit()
+    clear_progress(result_ws)
+    for tbl in result_ws.tables:
+        if tbl.name == TABLE_NAME:
+            tbl.delete()
+    last_row = result_ws.range('A1').end('down').row
+    rng = result_ws.range((1,1), (last_row, len(header)))
+    result_ws.tables.add(rng, name=TABLE_NAME, table_style_name=TABLE_STYLE, has_headers=True)
+    result_ws.range('A1').expand().columns.autofit()
+    result_ws.api.Rows(1).Font.Bold = True
+    print(f'→ Расчёт завершён и таблица стилизована (итого строк: {last_row-1})')
+    if app:
+        wb.save(); app.quit()
     print('=== Скрипт завершён ===')
 
 if __name__ == '__main__':
