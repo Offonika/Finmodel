@@ -77,10 +77,9 @@ def parse_month(val):
     if s.isdigit():
         return int(s)
     return 0
-def log_month(val, src, rownum=None, reason=''):
-    msg = f"[{src}] строка {rownum if rownum is not None else '-'}: raw={repr(val)} {f'— {reason}' if reason else ''}"
-    print(msg)
 
+def log_month(*args, **kwargs):
+    pass
 def build_idx(header): return {str(c).strip().lower(): i for i, c in enumerate(header)}
 
 def read_rows(sh):
@@ -117,11 +116,14 @@ def nds_rate(prev, curr, mode, def_r):
 # ---------- 4. Главная функция --------------------------------------------
 def fill_planned_indicators():
     headers = ['Организация', 'Месяц', 'Выручка, ₽', 'Выручка накоп., ₽',
-               'Выручка сводно, ₽', 'Выручка без НДС, ₽', 'НДС, ₽',
-               'Ставка НДС, %', 'Себестоимость руб', 'Себестоимость без НДС',
-               'Расх. MP, ₽', 'ФОТ, ₽', 'ЕСН, ₽', 'Прочие, ₽', 'EBITDA, ₽',
-               'EBITDA накоп., ₽', 'EBITDA сводно, ₽', 'Режим',
-               'Ставка УСН, %', 'Налог, ₽', 'Чистая прибыль, ₽']
+           'Выручка сводно, ₽', 'Выручка без НДС, ₽', 'НДС, ₽',
+           'Ставка НДС, %', 'Себестоимость руб', 'Себестоимость без НДС',
+           'Расх. MP с НДС, ₽',          # ← новая колонка (брутто)
+           'Расх. MP без НДС, ₽',        # ← бывшая «Расх. MP, ₽»
+           'ФОТ, ₽', 'ЕСН, ₽', 'Прочие, ₽', 'EBITDA, ₽',
+           'EBITDA накоп., ₽', 'EBITDA сводно, ₽', 'Режим',
+           'Ставка УСН, %', 'Налог, ₽', 'Чистая прибыль, ₽']
+
     ruble_cols = [h for h in headers if '₽' in h or h.startswith('Себестоимость')]
 
     wb = app = None
@@ -132,21 +134,42 @@ def fill_planned_indicators():
         sheet_names = [s.name for s in ss.sheets]
 
         # === 4.2 Данные WB =============================================
+        # === 4.2 Данные WB =============================================
         if SHEET_WB not in sheet_names:
             raise ValueError(f'Нет листа {SHEET_WB}')
+
+        # ❶ читаем строки и индексы
         wb_rows, wb_idx = read_rows(ss.sheets[SHEET_WB])
-        need_wb = ['организация', 'месяц', 'выручка, ₽', 'расходы мп, ₽',
-                   'себестоимостьпродажруб', 'себестоимостьпродажбезндс']
+
+        # выводим индексы только при запуске из ТЕРМИНАЛА (app == None)
+        if app is None:          # <<< добавили условие
+            print('WB idx:', wb_idx)
+
+        # ❸ проверяем обязательные колонки
+        need_wb = [
+            'организация', 'месяц', 'выручка, ₽', 'расходы мп, ₽',
+            'себестоимостьпродажруб', 'себестоимостьпродажбезндс'
+        ]
         for col in need_wb:
             if col not in wb_idx:
                 raise ValueError(f'Колонка «{col}» отсутствует в {SHEET_WB}')
 
-               # === 4.3 Данные Ozon ===========================================
+
+        # === 4.3 Данные Ozon ===========================================
+
         rows = []
+        oz_rows = []                      # на случай отсутствия листа Ozon
+                         # сюда будем складывать все строки
         if SHEET_OZON in sheet_names:
             oz_rows, oz_idx_raw = read_rows(ss.sheets[SHEET_OZON])
-            # Приводим ключи к нижнему регистру и убираем пробелы для надёжности:
+
+            # Приводим ключи к нижнему регистру и убираем пробелы
             oz_idx = {str(k).strip().lower(): i for k, i in oz_idx_raw.items()}
+
+            if app is None:          # <<< только из терминала
+                print('Ozon idx:', oz_idx)
+
+
             need_oz = [
                 'организация', 'месяц', 'выручка_руб', 'итогорасходымп_руб',
                 'себестоимостьпродаж_руб', 'себестоимостьбезндс_руб'
@@ -154,6 +177,7 @@ def fill_planned_indicators():
             for col in need_oz:
                 if col not in oz_idx:
                     raise ValueError(f'Колонка «{col}» отсутствует в {SHEET_OZON}')
+
 
         for i, r in enumerate(oz_rows, 2):  # 2 — потому что range(1,1) = A1, а данные с 2-й строки
             org = r[oz_idx['организация']]
@@ -259,7 +283,7 @@ def fill_planned_indicators():
         out = []
         for g in records:
             cfg = org_cfg.get(g['org'], dict(orig_mode='ОСНО', consolidation=False,
-                                             nds_rate=0, usn_rate=0, type='ООО'))
+                                            nds_rate=0, usn_rate=0, type='ООО'))
             mode_eff = cfg['orig_mode']
             gross = cum_all[g['month']] if cfg['consolidation'] else cum_org[g['org']][g['month']]
             if cfg['orig_mode'] in ('Доходы', 'Доходы-Расходы') and gross > LIMIT_GROSS_USN:
@@ -267,24 +291,45 @@ def fill_planned_indicators():
 
             prev = p_rev.get(g['org'], 0)
             nds = nds_rate(prev, prev + g['rev'], mode_eff, cfg['nds_rate'])
-            revN = g['rev'] / (1 + nds / 100); nds_sum = g['rev'] - revN; mpN = g['mp'] / 1.2
-            sal = salary.get(g['org'], dict(fot=0, mode='Неформ')); fot = sal['fot']
+
+            # --- выручка и НДС ---
+            revN    = g['rev'] / (1 + nds / 100)     # выручка без НДС
+            nds_sum = g['rev'] - revN                # сумма НДС
+
+            # --- расходы МП ---
+            mpGross = g['mp']                        # с НДС (как в исходных таблицах)
+            mpN     = mpGross / 1.2                  # без НДС  (ставка 20 %)
+
+            # --- зарплата/ЕСН/прочее ---
+            sal = salary.get(g['org'], dict(fot=0, mode='Неформ'))
+            fot = sal['fot']
             esn = fot * 0.30 if sal['mode'] == 'Официальная' else 0
             oth_cost = other.get(g['org'], 0)
+
+            # --- себестоимость ---
             cost_base = g['cn'] if round(nds) == 20 else g['cr']
+
+            # --- EBIT ---
             ebit = revN - (cost_base + mpN + fot + esn + oth_cost)
 
+            # --- аккумулируем промежуточные суммы (как было) ---
             p_rev[g['org']] = prev + g['rev']
             p_ebit[g['org']] = p_ebit.get(g['org'], 0) + ebit
-            p_net[g['org']] = p_net.get(g['org'], 0) + revN
+            p_net[g['org']]  = p_net.get(g['org'], 0) + revN
 
-            out.append(dict(org=g['org'], m=g['month'], rev=g['rev'], cumG=gross,
-                            revN=revN, ndsSum=nds_sum, nds=nds, cr=g['cr'], cn=g['cn'],
-                            mp=mpN, fot=fot, esn=esn, oth=oth_cost, ebit=ebit,
-                            cumN=p_net[g['org']], cumE=p_ebit[g['org']],
-                            mode=mode_eff, type=cfg['type'], prevM=last_mode.get(g['org']),
-                            usn=cfg['usn_rate']))
+            out.append(dict(
+                org=g['org'], m=g['month'], rev=g['rev'], cumG=gross,
+                revN=revN, ndsSum=nds_sum, nds=nds,
+                cr=g['cr'], cn=g['cn'],
+                mpGross=mpGross,          # ← сохраняем
+                mpNet=mpN,                # ← сохраняем
+                fot=fot, esn=esn, oth=oth_cost, ebit=ebit,
+                cumN=p_net[g['org']], cumE=p_ebit[g['org']],
+                mode=mode_eff, type=cfg['type'], prevM=last_mode.get(g['org']),
+                usn=cfg['usn_rate']
+            ))
             last_mode[g['org']] = mode_eff
+
 
         ebit_m = acc(out, lambda x: x['m'], lambda x: x['ebit'])
         rows_out, cum_osno = [], {}
@@ -305,24 +350,74 @@ def fill_planned_indicators():
                 else:
                     base = max(r['ebit'], 0); tax = round(base * 0.25); rate = '25%'
             rows_out.append([
-                r['org'], r['m'], round(r['rev']), round(r['cumG']),
-                round(cum_all[r['m']]), round(r['revN']), round(r['ndsSum']),
-                f"{round(r['nds'])}%", round(r['cr']), round(r['cn']),
-                round(r['mp']), round(r['fot']), round(r['esn']), round(r['oth']),
-                round(r['ebit']), round(r['cumN']), round(ebit_m[r['m']]),
-                r['mode'], rate, tax, round(r['ebit'] - tax)
+                #  1  Организация
+                r['org'],
+                #  2  Месяц
+                r['m'],
+                #  3  Выручка, ₽
+                round(r['rev']),
+                #  4  Выручка накоп., ₽
+                round(r['cumG']),
+                #  5  Выручка сводно, ₽
+                round(cum_all[r['m']]),
+                #  6  Выручка без НДС, ₽
+                round(r['revN']),
+                #  7  НДС, ₽
+                round(r['ndsSum']),
+                #  8  Ставка НДС, %
+                f"{round(r['nds'])}%",
+                #  9  Себестоимость руб
+                round(r['cr']),
+                # 10  Себестоимость без НДС
+                round(r['cn']),
+                # 11  Расх. MP с НДС, ₽   (брутто)
+                round(r['mpGross']),
+                # 12  Расх. MP без НДС, ₽ (нетто)
+                round(r['mpNet']),
+                # 13  ФОТ, ₽
+                round(r['fot']),
+                # 14  ЕСН, ₽
+                round(r['esn']),
+                # 15  Прочие, ₽
+                round(r['oth']),
+                # 16  EBITDA, ₽
+                round(r['ebit']),
+                # 17  EBITDA накоп., ₽
+                round(r['cumE']),
+                # 18  EBITDA сводно, ₽
+                round(ebit_m[r['m']]),
+                # 19  Режим
+                r['mode'],
+                # 20  Ставка УСН, %
+                rate,
+                # 21  Налог, ₽
+                tax,
+                # 22  Чистая прибыль, ₽
+                round(r['ebit'] - tax)
             ])
 
-        # === 4.9 Запись в Excel ========================================
-        sh = ss.sheets[SHEET_OUT] if SHEET_OUT in sheet_names else ss.sheets.add(SHEET_OUT)
-        sh.clear()
+
+        # === 4.9 Запись в Excel ====================================
+        
+        target = None
+        for sht in ss.sheets:
+                clean = sht.name.replace('\u200b', '').strip()   # убираем нулевой-ширины пробелы
+                if clean == SHEET_OUT:
+                    target = sht
+                    break
+
+        if target is None:                       # листа нет — создаём
+                target = ss.sheets.add(SHEET_OUT)
+
+        sh = target
+        sh.clear()                          # очищаем старые данные
+
         sh.range(1, 1).value = headers
         if rows_out:
             sh.range(2, 1).value = rows_out
 
         # ------ создаём / обновляем умную таблицу (оптимизировано) ------
-                # ------ создаём / обновляем умную таблицу (способ 2) -----------
-                # ------ создаём / обновляем умную таблицу (быстро) -------------
+       
         screen, calc = wb.app.screen_updating, wb.app.calculation
         events       = wb.app.enable_events
         wb.app.screen_updating = False
@@ -343,9 +438,16 @@ def fill_planned_indicators():
             # 3) создать новую ListObject без TotalsRow
             lo = sh.api.ListObjects.Add(1, lo_range, None, 1)
             lo.Name, lo.TableStyle = TABLE_NAME, TABLE_STYLE   # стиль Medium 7
+            fmt_fin = (
+                '_-* #,##0 ₽_-;'           # положительные
+                '_-* (#,##0 ₽)_-;'         # отрицательные (скобки)
+                '_-* "-"?? ₽_-;'           # нули → тире
+                '_-@_-'                    # текст
+            )
+
 
             # 4) форматируем все ₽-колонки единым вызовом
-            fmt = '0 ₽'
+            fmt = fmt_fin
             ruble_idx = [headers.index(c) + 1 for c in ruble_cols]
             for i in ruble_idx:
                 lo.ListColumns(i).Range.NumberFormat = fmt
@@ -382,5 +484,7 @@ def fill_planned_indicators():
                 wb.close(); app.quit()
 
 # ---------- 5. Точка входа -----------------------------------------------
+
 if __name__ == '__main__':
     fill_planned_indicators()
+

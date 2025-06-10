@@ -288,14 +288,18 @@ def main():
         base = round(sum(qty_map[key]) / months_cnt) if months_cnt else 0
         factors = season_factors.get(p['subject'], [1]*12)
         month_vals = []
+      
         for i in range(12):
-            if i+1 < current_month:
-                month_val = arr[i] if arr[i] > 0 else round(base * factors[i])
-            elif i+1 == current_month:
-                month_val = arr[i] if arr[i] > 0 else round(base * factors[i])
+            month_num = i + 1
+            if month_num < current_month:
+                # Прошедшие месяцы: только факт, иначе 0
+                month_val = arr[i] if arr[i] > 0 else 0
             else:
+                # Текущий и будущие месяцы: только прогноз
                 month_val = round(base * factors[i])
             month_vals.append(month_val)
+
+
         if key == key_for_debug:
             print(f'\n=== Итоговый arr для {key}: {arr}')
             print(f'=== Плановые значения для {key}:')

@@ -114,6 +114,29 @@ def _set_table_style_and_tab_color(ws_target):
     except Exception as e:
         print(f"Не удалось задать цвет ярлыка: {e}")
 
+
+def _drop_totals(df: pd.DataFrame, check_cols=("Артикул_поставщика", "SKU", "Организация")) -> pd.DataFrame:
+    """
+    Удаляет строки, где в любом из check_cols встречается 'итого'
+    (регистр и пробелы игнорируются).
+    """
+    if df.empty:
+        return df
+
+    def is_total(val):
+        try:
+            return str(val).strip().lower() == "итого"
+        except Exception:
+            return False
+
+    mask = df.apply(
+        lambda row: any(
+            is_total(row[col]) for col in check_cols if col in df.columns
+        ),
+        axis=1,
+    )
+    return df.loc[~mask].copy()
+
 # ---------- Основная логика -------------------------------------------------
 
 def build_ozon_economics_table():
@@ -129,7 +152,11 @@ def build_ozon_economics_table():
         get = lambda key: cfg.get(key, Decimal("0"))
 
         plan_df = ws_plan.used_range.options(pd.DataFrame, header=1, index=False).value
+        plan_df = _drop_totals(plan_df)  # <--- добавлено
+
         cost_df = ws_cost.used_range.options(pd.DataFrame, header=1, index=False).value
+        cost_df = _drop_totals(cost_df)  # <--- добавлено
+
         cost_df = cost_df[["Организация", "Артикул_поставщика",
                            "Себестоимость_руб", "Себестоимость_без_НДС_руб"]]
 

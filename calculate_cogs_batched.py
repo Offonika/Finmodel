@@ -4,9 +4,57 @@ import os
 import xlwings as xw
 import pandas as pd
 import math
+import logging, datetime, pathlib
+RUS_TO_LAT = str.maketrans("АВЕКМНОРСТХ",
+                           "ABEKMHOPCTX")  # кир → лат
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+def norm(key: str) -> str:
+    """
+    Нормализует артикул:
+    • обрезает пробелы
+    • приводит к верхнему регистру
+    • переводит русские 'A,B, ...' в латиницу
+    """
+    if key is None:
+        return ""
+    return str(key).replace(" ", " ").strip().upper().translate(RUS_TO_LAT)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))   # ← был позже – перенесли сюда!
+LOG_DIR  = pathlib.Path(BASE_DIR, "log")
+LOG_DIR.mkdir(exist_ok=True)
+LOG_FILE = LOG_DIR / f"cogs_{datetime.datetime.now():%Y%m%d_%H%M%S}.log"
+# ---------- ДОБАВЬТЕ СРАЗУ ПОСЛЕ import'ов --------------------
+
+
+LOG_FILE = os.path.join(
+    BASE_DIR,
+    f"planned_indicators_{datetime.datetime.now():%Y%m%d_%H%M%S}.log"
+)
+logging.basicConfig(
+    filename=LOG_FILE,
+    level=logging.INFO,                 # INFO→видно всё; WARNING→только ошибки
+    format="%(asctime)s  %(message)s",
+    encoding="utf-8",
+)
+log = logging.getLogger(__name__)
+# --------------------------------------------------------------
+
+logging.basicConfig(
+    filename=str(LOG_FILE),
+    filemode="w",
+    # INFO скрывает debug-сообщения
+    level=logging.INFO,
+    format="%(asctime)s  %(levelname)-8s  %(message)s",
+    encoding="utf-8",
+)
+logger = logging.getLogger(__name__)
+
+def log(msg, level="info"):
+    getattr(logger, level)(msg)      # пишем в файл
+    # если хотите видеть всё ещё и в консоли, раскомментируйте:
+    # print(msg)
+# --------------------------------
 EXCEL_PATH = os.path.join(BASE_DIR, 'Finmodel.xlsm')
+
 
 # ЗАМЕНЁННЫЕ НАЗВАНИЯ ЛИСТОВ
 SHEET_PRODUCTS = 'Номенклатура_WB'
@@ -89,170 +137,122 @@ def clear_progress(ws):
     ws.range(PROGRESS_CELL).value = None
 
 def main():
-    print('=== Старт batch расчёта себестоимости ===')
-    wb, app = get_workbook()
+    log("=== Старт batch расчёта себестоимости ===")
+    wb, app = get_workbook()           # app=None → запущено из Excel; иначе invis-Excel
 
-    try:
-        prod_ws = wb.sheets[SHEET_PRODUCTS]
-        price_ws = wb.sheets[SHEET_PRICES]
-        duty_ws = wb.sheets[SHEET_DUTIES]
-        settings_ws = wb.sheets[SHEET_SETTINGS]
-    except Exception as e:
-        print(f'❌ Не найден один из листов: {e}')
-        if app: app.quit()
-        return
+    try:                               # ───── ВСЁ внутри этого try ─────
+        # 1. Получаем нужные листы
+        try:
+            prod_ws     = wb.sheets[SHEET_PRODUCTS]
+            price_ws    = wb.sheets[SHEET_PRICES]
+            duty_ws     = wb.sheets[SHEET_DUTIES]
+            settings_ws = wb.sheets[SHEET_SETTINGS]
+        except Exception as e:
+            print(f"❌ Не найден один из листов: {e}")
+            log(f"Критическая ошибка: {e}", "error")
+            return                       # выходим, finally всё закроет
 
-    global_params = read_settings(settings_ws)
-    print(f'→ Параметры: {global_params}')
+        # 2. Читаем глобальные параметры
+        global_params = read_settings(settings_ws)
+        log(f"→ Параметры: {global_params}")
 
-    prod_df = prod_ws.range(1,1).expand().options(pd.DataFrame, header=1, index=False).value
-    price_df = price_ws.range(1,1).expand().options(pd.DataFrame, header=1, index=False).value
-    duty_df = duty_ws.range(1,1).expand().options(pd.DataFrame, header=1, index=False).value
+        # 3. Загружаем таблицы в DataFrame
+        prod_df  = prod_ws.range(1,1).expand().options(pd.DataFrame, header=1, index=False).value
+        price_df = price_ws.range(1,1).expand().options(pd.DataFrame, header=1, index=False).value
+        duty_df  = duty_ws.range(1,1).expand().options(pd.DataFrame, header=1, index=False).value
 
-    idxP = {h: i for i, h in enumerate(prod_df.columns)}
-    idxC = {h: i for i, h in enumerate(price_df.columns)}
-    idxD = {h: i for i, h in enumerate(duty_df.columns)}
+        # 4. Строим словари для быстрого поиска
+        price_dict = {norm(r['Артикул_поставщика']): r
+                      for _, r in price_df.iterrows()}
+        duty_dict  = {str(r['Предмет']).strip(): r
+                      for _, r in duty_df.iterrows()}
 
-    price_dict = {str(r['Артикул_поставщика']).strip().upper(): r for _, r in price_df.iterrows()}
+        # 5. Готовим лист результата
+        result_ws = wb.sheets[SHEET_RESULT] if SHEET_RESULT in [s.name for s in wb.sheets] \
+                    else wb.sheets.add(SHEET_RESULT)
+        header = ['Организация','Артикул_поставщика','Предмет','Наименование',
+                  'Закуп_Цена_руб','Логистика_руб','Пошлина_руб','НДС_руб',
+                  'Себестоимость_руб','Себестоимость_без_НДС_руб','Входящий_НДС_руб']
+        result_ws.clear();  result_ws.range(1,1).value = header
+        first_free = 2
 
-    duty_dict = {str(r['Предмет']): r for _, r in duty_df.iterrows()}
+        # 6. Основной цикл по товарам чанками
+        skipped = 0
+        for chunk_start in range(0, len(prod_df), BATCH_SIZE):
+            chunk_end = min(len(prod_df), chunk_start + BATCH_SIZE)
+            batch_out = []
 
-    result_ws = None
-    try:
-        result_ws = wb.sheets[SHEET_RESULT]
-        header_row = result_ws.range(1,1).expand('right').value
-        print(f'→ Лист {SHEET_RESULT} найден, строк: {result_ws.range("A1").end("down").row}')
-    except:
-        result_ws = wb.sheets.add(SHEET_RESULT)
-        header_row = None
-        print(f'→ Лист {SHEET_RESULT} создан')
+            for i in range(chunk_start, chunk_end):
+                row = prod_df.iloc[i]
+                org          = row['Организация']
+                vendor_orig  = row['Артикул_поставщика']
+                vendor_norm  = norm(vendor_orig)
+                subject      = row['Предмет']
+                name         = row['Название']
+                weight       = safe_float(row['Вес_брутто'])
 
-    header = [
-        'Организация',
-        'Артикул_поставщика',
-        'Предмет',
-        'Наименование',
-        'Закуп_Цена_руб',
-        'Логистика_руб',
-        'Пошлина_руб',
-        'НДС_руб',
-        'Себестоимость_руб',
-        'Себестоимость_без_НДС_руб',
-        'Входящий_НДС_руб'
-    ]
-    start_idx = get_progress(result_ws)
-    if start_idx == 1 or not header_row or header_row != header:
-        result_ws.clear()
-        result_ws.range(1,1).value = header
-        start_idx = 1
-        print('→ Заголовок записан, таблица очищена')
-        set_progress(result_ws, 1)
+                price_row = price_dict.get(vendor_norm)
+                if price_row is None:
+                    # было: log(..., "warning")
+                    log(f"Skip {vendor_orig} ({org}) – нет закупочной цены", "debug")
+                    skipped += 1
+                    continue
 
-    # --- Диагностика ---
-    print(f'Всего товаров: {len(prod_df)}, Закупочных цен: {len(price_df)}')
+                # --- расчёты ---
+                price_val = safe_float(price_row.get('Закуп_Цена'))
+                rate      = global_params['usdRate'] if price_row.get('Валюта') == 'USD' \
+                         else global_params['cnyRate'] if price_row.get('Валюта') == 'CNY' else 1
+                purchase_rub = price_val * rate
 
-    # Список артикулов из price_dict
-    all_price_keys = set(price_dict.keys())
+                duty_row       = duty_dict.get(subject)
+                logistics_mode = get_logistics_mode(org, settings_ws)
+                kg_rate        = global_params['cargoRatePerKg'] if logistics_mode=='Карго' \
+                               else global_params['whiteRatePerKg']
+                logistics_rub  = weight * kg_rate * global_params['usdRate']
 
-    # Список артикулов из Номенклатуры
-    all_product_keys = set(str(x).strip().upper() for x in prod_df['Артикул_поставщика'])
+                duty_rate = 0
+                if logistics_mode == 'Белая' and duty_row is not None:
+                    raw = duty_row.get('Пошлина')
+                    duty_rate = float(str(raw).replace('%','').replace(',','.'))/100 if raw else 0
+                duty_rub = purchase_rub * duty_rate
+                vat_rub  = (purchase_rub + duty_rub + logistics_rub) * global_params['ndsRateWhite'] \
+                           if logistics_mode == 'Белая' else 0
 
-    # Артикулы без закупочной цены
-    not_found = all_product_keys - all_price_keys
-    print(f'❗ Не найдены закупочные цены для {len(not_found)} товаров. Примеры: {list(not_found)[:10]}')
+                total_cogs      = purchase_rub + duty_rub + logistics_rub + vat_rub
+                cogs_without_vat = total_cogs - vat_rub
 
+                batch_out.append([
+                    org, vendor_orig, subject, name,
+                    round(purchase_rub), round(logistics_rub), round(duty_rub),
+                    round(vat_rub),      round(total_cogs),    round(cogs_without_vat),
+                    round(vat_rub)
+                ])
 
+            if batch_out:
+                result_ws.range((first_free, 1)).value = batch_out
+                first_free += len(batch_out)
+                log(f"добавлено строк: {len(batch_out)}")
 
-    n = len(prod_df)
-    print(f'→ Всего товаров: {n}, стартовый индекс: {start_idx}')
+        log(f"Расчёт завершён. Итоговых строк: {first_free-2}, пропущено без цены: {skipped}")
+        print(f"✓ COGS рассчитан: {first_free-2} строк, пропусков {skipped}")
 
-    processed = 0
-    skipped = 0
-    idx = start_idx - 1
-    while idx < n:
-        batch_end = min(n, idx + BATCH_SIZE)
-        batch = []
-        for i in range(idx, batch_end):
-            r = prod_df.iloc[i]
-            org = r['Организация']
-            vendor = str(r['Артикул_поставщика']).strip().upper()
+        # 7. Оформляем умную таблицу
+        for tbl in result_ws.tables:
+            if tbl.name == TABLE_NAME:
+                tbl.delete()
 
-            subject = r['Предмет']
-            name = r['Название']
-            weight = safe_float(r['Вес_брутто'])
+        rng = result_ws.range((1,1), (first_free-1, len(header)))
+        result_ws.tables.add(rng, name=TABLE_NAME,
+                             table_style_name=TABLE_STYLE, has_headers=True)
+        result_ws.autofit()
+        log("Готово, файл сохранён"); print("✓ Готово!")
 
-            price_row = price_dict.get(str(vendor))
-            if price_row is None or (hasattr(price_row, 'empty') and price_row.empty):
-                print(f'Skip {vendor} ({org}) – no purchase price found')
-                skipped += 1
-                continue
+    finally:                           # ───── закрываем Excel, если нужен ─────
+        if app is not None:
+            wb.save(); wb.close()
+            app.quit(); del app
+            log("Excel закрыт корректно")
 
-            price_val = safe_float(price_row.get('Закуп_Цена'))
-            currency = price_row.get('Валюта')
-            if currency == 'USD':
-                rate = global_params['usdRate']
-            elif currency == 'CNY':
-                rate = global_params['cnyRate']
-            else:
-                rate = 1
-            purchase_rub = price_val * rate
-
-            duty_row = duty_dict.get(subject)
-            logistics_mode = get_logistics_mode(org, settings_ws)
-            logistics_rate_per_kg = global_params['cargoRatePerKg'] if logistics_mode == 'Карго' else global_params['whiteRatePerKg']
-            logistics_rub = weight * logistics_rate_per_kg * global_params['usdRate']
-
-            duty_rate = 0
-            if logistics_mode == 'Белая' and duty_row is not None:
-                duty_rate_val = duty_row.get('Пошлина')
-                if isinstance(duty_rate_val, str):
-                    duty_rate = float(duty_rate_val.replace('%', '').replace(',', '.')) / 100
-                elif isinstance(duty_rate_val, (int, float)):
-                    duty_rate = duty_rate_val / 100 if duty_rate_val > 1 else duty_rate_val
-            duty_rub = purchase_rub * duty_rate
-
-            vat_rub = (purchase_rub + duty_rub + logistics_rub) * global_params['ndsRateWhite'] if logistics_mode == 'Белая' else 0
-            total_cogs = purchase_rub + duty_rub + logistics_rub + vat_rub
-            cogs_without_vat = total_cogs - vat_rub
-
-            batch.append([
-                org,
-                vendor,
-                subject,
-                name,
-                round(purchase_rub),
-                round(logistics_rub),
-                round(duty_rub),
-                round(vat_rub),
-                round(total_cogs),
-                round(cogs_without_vat),
-                round(vat_rub)
-            ])
-            processed += 1
-
-        if batch:
-            first_row = result_ws.range('A1').end('down').row + 1 if result_ws.range('A1').end('down').row > 1 else 2
-            result_ws.range(first_row, 1).value = batch
-            print(f'→ В таблицу добавлено строк: {len(batch)}')
-        else:
-            print('→ Нет новых строк для записи')
-
-        idx = batch_end
-        set_progress(result_ws, idx + 1)
-
-    clear_progress(result_ws)
-    for tbl in result_ws.tables:
-        if tbl.name == TABLE_NAME:
-            tbl.delete()
-    last_row = result_ws.range('A1').end('down').row
-    rng = result_ws.range((1,1), (last_row, len(header)))
-    result_ws.tables.add(rng, name=TABLE_NAME, table_style_name=TABLE_STYLE, has_headers=True)
-    result_ws.range('A1').expand().columns.autofit()
-    result_ws.api.Rows(1).Font.Bold = True
-    print(f'→ Расчёт завершён и таблица стилизована (итого строк: {last_row-1})')
-    if app:
-        wb.save(); app.quit()
-    print('=== Скрипт завершён ===')
-
-if __name__ == '__main__':
+# ------------------------------------------
+if __name__ == "__main__":
     main()
