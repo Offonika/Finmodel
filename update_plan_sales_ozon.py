@@ -19,7 +19,7 @@ TABLE_STYLE    = 'TableStyleMedium7'
 MONTHS_CNT = 12
 MONTH_NAMES = [f'Мес.{str(i+1).zfill(2)}' for i in range(MONTHS_CNT)]
 CURRENT_MONTH = datetime.now().month
-
+CURRENT_YEAR = datetime.now().year 
 def normalize_sku(val):
     s = str(val).strip()
     if s.endswith('.0'):
@@ -41,111 +41,111 @@ def safe_float(val):
     except Exception:
         return 0.0
 
+def read_df(ws, idx_needed=()):
+    """Безопасное чтение листа в DataFrame + проверка колонок"""
+    df = ws.range(1, 1).expand().options(
+        pd.DataFrame,
+        header=True,   # было header=1   !!!
+        index=False
+    ).value
+    idx = {c.strip(): i for i, c in enumerate(df.columns)}
+    for col in idx_needed:
+        if col not in idx:
+            raise ValueError(f'Колонка «{col}» не найдена')
+    return df, idx
+
+
 def main():
     print("=== Старт update_plan_sales_ozon ===")
     wb, app = get_workbook()
-    print('→ Открыт файл:', wb.fullname)
+    print("→ Открыт файл:", wb.fullname)
 
-    # 1. Сезонные коэффициенты по SKU
-    try:
-        season_ws = wb.sheets[SHEET_SEASON]
-        season_df = season_ws.range(1,1).expand().options(pd.DataFrame, header=1, index=False).value
-        print(f'→ Лист {SHEET_SEASON} считан: {len(season_df)} строк')
-    except Exception as e:
-        print(f'❌ Нет листа {SHEET_SEASON}')
-        if app: app.quit()
-        return
-    season_factors = {}
-    for _, r in season_df.iterrows():
-        sku = str(r.iloc[0])
-        vals = [safe_float(r.iloc[i]) if i < len(r) else 1.0 for i in range(1, MONTHS_CNT+1)]
-        season_factors[sku] = vals
+    # 1. Сезонность
+    season_df, _ = read_df(wb.sheets[SHEET_SEASON])
+    season_factors = {
+        str(r.iloc[0]).strip(): [
+            safe_float(r.iloc[i]) if i < len(r) else 1.0
+            for i in range(1, MONTHS_CNT + 1)
+        ]
+        for _, r in season_df.iterrows()
+    }
+    print(f'→ Лист {SHEET_SEASON} считан: {len(season_df)} строк')
 
-    # 2. История продаж (ФинотчетыОзон)
+    # 2. Финотчёты
+    
     try:
-        sales_ws = wb.sheets[SHEET_SALES]
-        sales_df = sales_ws.range(1,1).expand().options(pd.DataFrame, header=1, index=False).value
-        print(f'→ Лист {SHEET_SALES} считан: {len(sales_df)} строк')
-    except Exception as e:
+        sales_df = wb.sheets[SHEET_SALES] \
+                    .range(1, 1).expand() \
+                    .options(pd.DataFrame, header=1, index=False).value
+        print(f'→ Лист {SHEET_SALES}: {len(sales_df)} строк')
+    except Exception:
         print(f'❌ Нет листа {SHEET_SALES}')
         if app: app.quit()
         return
-    idx_sales = {h: i for i, h in enumerate(sales_df.columns)}
-    req_cols = ['Организация','Артикул_поставщика','SKU','Продано шт.','Месяц']
-    for col in req_cols:
-        if col not in idx_sales:
-            print(f'❌ Нет колонки "{col}" в {SHEET_SALES}')
-            if app: app.quit()
-            return
 
-    CURRENT_YEAR = datetime.now().year  # или любой нужный
-
-    sku_to_offer = {}
-    for _, r in sales_df.iterrows():
-        org = str(r['Организация'])
-        sku = normalize_sku(r['SKU'])
-        offer = str(r['Артикул_поставщика'])
-        if sku and offer:
-            sku_to_offer[(org, sku)] = offer
-
-    qty_map = {}
-    for _, r in sales_df.iterrows():
-        year = int(safe_float(r['Год']))
-        if year != CURRENT_YEAR:
-            continue
-        org  = str(r['Организация'])
-        sku = normalize_sku(r['SKU'])
-        month = int(safe_float(r['Месяц']))
-        qty = safe_float(r['Продано шт.'])
-        key = (org, sku)
-        if key not in qty_map:
-            qty_map[key] = [0.0] * MONTHS_CNT
-        if 1 <= month <= MONTHS_CNT:
-            qty_map[key][month-1] += qty
-
-
-
-    # 3. Цены по "ЦеныОзон"
-    try:
-        prices_ws = wb.sheets[SHEET_PRICES]
-        prices_df = prices_ws.range(1,1).expand().options(pd.DataFrame, header=1, index=False).value
-        print(f'→ Лист {SHEET_PRICES} считан: {len(prices_df)} строк')
-    except Exception as e:
-        print(f'❌ Нет листа {SHEET_PRICES}')
+    need_cols = {'Организация', 'Артикул_поставщика', 'SKU',
+                'Год', 'Месяц', 'Продано шт.'}
+    missing = need_cols - set(sales_df.columns)
+    if missing:
+        print(f'❌ В {SHEET_SALES} нет колонок: {", ".join(missing)}')
         if app: app.quit()
         return
-    idx_price = {h: i for i, h in enumerate(prices_df.columns)}
-    if 'Артикул' not in idx_price or 'Цена продавца с акциями' not in idx_price:
-        print(f'❌ Нет нужных колонок в {SHEET_PRICES}')
-        if app: app.quit()
-        return
-    price_map = {}
-    for _, r in prices_df.iterrows():
-        offer = str(r['Артикул'])
-        price_map[offer] = safe_float(r['Цена продавца с акциями'])
 
-   
-    # 4. Сборка плана
+    # ► безопасные числа
+    sales_df['Год']        = sales_df['Год'].apply(safe_float).astype(int)
+    sales_df['Месяц']      = sales_df['Месяц'].apply(safe_float).astype(int)
+    sales_df['Продано шт.'] = sales_df['Продано шт.'].apply(safe_float)
+
+    # ► только текущий год
+    sales_df = sales_df[sales_df['Год'] == CURRENT_YEAR]
+
+    # ► pivot-таблица 12 × месяцев
+    pivot = (
+        sales_df
+        .pivot_table(index=['Организация', 'Артикул_поставщика', 'SKU'],
+                    columns='Месяц',
+                    values='Продано шт.',
+                    aggfunc='sum',
+                    fill_value=0)
+        .reindex(columns=range(1, 13), fill_value=0)   # 12 месяцев
+    )
+
+    qty_map, sku_to_offer = {}, {}
+
+    for (org, offer, sku), row in pivot.iterrows():      # ← БЕЗ reset_index()
+        key = (str(org), normalize_sku(sku))
+        qty_map[key]      = row.tolist()                 # значения месяцев 1-12
+        sku_to_offer[key] = str(offer)
+
+
+    # 3. Цены
+    prices_df, _ = read_df(
+        wb.sheets[SHEET_PRICES],
+        idx_needed=('Артикул', 'Цена продавца с акциями')
+    )
+    price_map = {
+        str(r['Артикул']).strip(): safe_float(r['Цена продавца с акциями'])
+        for _, r in prices_df.iterrows()
+    }
+    print(f'→ Лист {SHEET_PRICES} считан: {len(prices_df)} строк')
+
+    # 4. План
     rows = []
-    for key, hist in qty_map.items():
-        org, sku = key
-        offer = sku_to_offer.get((org, sku), '')   # находим offer для (org, sku)
-        total_hist = sum(hist[:CURRENT_MONTH])
-        if total_hist == 0:
+    for (org, sku), hist in qty_map.items():
+        done_months = [q for q in hist[:CURRENT_MONTH] if q > 0]
+        if not done_months:
             continue
-        base = round(total_hist / max(1, CURRENT_MONTH))
+        base    = round(sum(done_months) / len(done_months))   # ← делим не на 6, а на кол-во месяцев с продажами
         factors = season_factors.get(sku, [1.0] * MONTHS_CNT)
-        price = price_map.get(offer, 0.0)          # цены по offer
-        plan = []
-        for i in range(MONTHS_CNT):
-            if i < CURRENT_MONTH-1:
-                plan.append(round(hist[i]))
-            else:
-                plan.append(round(base * factors[i]))
+        price   = price_map.get(sku_to_offer[(org, sku)], 0.0)
+
+        plan = [
+            round(hist[i]) if i < CURRENT_MONTH - 1 else round(base * factors[i])
+            for i in range(MONTHS_CNT)
+        ]
         if sum(plan) == 0:
             continue
-        row = [org, offer, sku, base, price] + plan
-        rows.append(row)
+        rows.append([org, sku_to_offer[(org, sku)], sku, base, price, *plan])
 
     # Сортировка по сумме продаж
     rows.sort(key=lambda r: -sum(r[5:5+MONTHS_CNT]))
@@ -211,15 +211,31 @@ def main():
 
 
 def get_workbook():
+    """Возвращает (wb, app). 
+    Если книга уже открыта в Excel — берём её,
+    иначе создаём невидимый экземпляр и открываем файл."""
     try:
+        # 1) вызов из макроса
         wb = xw.Book.caller()
-        app = None
         print('→ Запуск из Excel-макроса')
+        return wb, None
     except Exception:
-        app = xw.App(visible=False)
-        wb = app.books.open(EXCEL_PATH)
-        print(f'→ Запуск из терминала, открыт файл: {EXCEL_PATH}')
+        pass  # не из макроса
+
+    # 2) запущено из терминала
+    #    пробуем найти уже открытую копию
+    for app in xw.apps:
+        for bk in app.books:
+            if bk.fullname and os.path.samefile(bk.fullname, EXCEL_PATH):
+                print('→ Используем уже открытую книгу')
+                return bk, None          # !!! app = None → не закрываем чужой Excel
+
+    # 3) книги нет — открываем новую (невидимо)
+    app = xw.App(visible=False, add_book=False)
+    wb  = app.books.open(EXCEL_PATH, update_links=False)  # по-умолчанию read_only=False
+    print('→ Книга была закрыта, открыли новую копию')
     return wb, app
+
 
 if __name__ == '__main__':
     main()
