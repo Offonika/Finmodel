@@ -99,7 +99,7 @@ def main():
 
     try:
         sheet_count = len(wb.sheets)
-        pos = 8 if sheet_count >= 9 else sheet_count
+        pos = 14 if sheet_count >= 15 else sheet_count
         if rev_ws.index != pos:
             rev_ws.api.Move(Before=wb.sheets[pos].api)
         print(f"→ Лист перемещён на позицию {pos}")

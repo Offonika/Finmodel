@@ -209,7 +209,7 @@ def main():
         sheet.range((2, 4), (last_row, 4)).api.NumberFormat = '0'
 
         sheet.api.Tab.Color = 5296274  # зелёный
-        sheet.api.Move(Before=wb.sheets[3].api)  # сделать вторым листом
+        sheet.api.Move(Before=wb.sheets[10].api)  # сделать вторым листом
         sheet.autofit()
         sheet.api.Rows.AutoFit()
 # --- Закрепить только первую строку (шапку)

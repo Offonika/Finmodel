@@ -3,7 +3,8 @@
 import os
 import xlwings as xw
 import win32com.client
-# Относительный путь к файлу Excel
+import math#
+import re
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 EXCEL_PATH = os.path.join(BASE_DIR, 'Finmodel.xlsm')
 
@@ -19,6 +20,13 @@ SHEET_NAMES = {
 }
 
 MONTHS = [f'Мес.{str(i+1).zfill(2)}' for i in range(12)]
+
+def wb_code_key(val):
+    """Артикул WB приводится к строке целого числа (убирает .0!)"""
+    try:
+        return str(int(float(val)))
+    except Exception:
+        return str(val).strip()
 
 def get_workbook():
     try:
@@ -64,6 +72,13 @@ def get_workbook():
         print(f'→ Запуск из консоли, открыт файл: {EXCEL_PATH}')
     return wb, app, from_caller
 
+
+
+def norm_key(val):
+    """Убирает все виды пробелов и приводит к верхнему регистру"""
+    return re.sub(r'\s+', '', str(val)).upper()
+
+
 def main():
     import time
     start = time.time()
@@ -95,22 +110,35 @@ def main():
         cIdx = idx_from_header(sh['comm'].range(1, 1).expand('right').value)
         sIdx = idx_from_header(sh['cost'].range(1, 1).expand('right').value)
 
-        # 3. Справочник товаров
+        # 3. Справочник товаров — используем Артикул_WB как ключ!
         print('📘 Чтение справочника товаров...')
         dicts = {}
         for r in sh['dict'].range(2, 1).expand('table').value:
-            art = r[dIdx['Артикул_поставщика']]
-            vol_cell = r[dIdx.get('Объем_литр', -1)] if 'Объем_литр' in dIdx else ''
+            wb_code = wb_code_key(r[dIdx['Артикул_WB']])
+            # пробуем взять объем из колонки
             try:
-                volL = to_num(vol_cell) if vol_cell else (
-                    float(r[dIdx['Ширина']]) * float(r[dIdx['Высота']]) * float(r[dIdx['Длина']]) / 1000
-                    if all(k in dIdx for k in ('Ширина', 'Высота', 'Длина')) else 0)
+                volL = float(r[dIdx.get('Объем_литр', -1)]) if 'Объем_литр' in dIdx else None
             except Exception:
-                volL = 0
-            dicts[art] = {
+                volL = None
+            if not volL or volL == 0:
+                try:
+                    width = float(r[dIdx['Ширина']]) if 'Ширина' in dIdx else 0
+                    height = float(r[dIdx['Высота']]) if 'Высота' in dIdx else 0
+                    length = float(r[dIdx['Длина']]) if 'Длина' in dIdx else 0
+                    if width > 0 and height > 0 and length > 0:
+                        volL = round(width * height * length / 1000, 3)
+                    else:
+                        volL = 0
+                except Exception:
+                    volL = 0
+            dicts[wb_code] = {
                 'subj': r[dIdx.get('Предмет', -1)] if 'Предмет' in dIdx else '',
-                'volL': volL
+                'volL': volL,
+                'art_postav': r[dIdx.get('Артикул_поставщика', -1)] if 'Артикул_поставщика' in dIdx else '',
             }
+
+
+
 
         # 4. Комиссии
         print('📊 Чтение таблицы комиссий...')
@@ -139,9 +167,9 @@ def main():
         cfg = {k: to_num(v) for k, v in cfg_raw if k}
         T_FIRST = cfg.get('Логистика стоимость первого литра', 60)
         T_NEXT  = cfg.get('Логистика стоимость дополнительного литра', 16)
-        T_COEF  = cfg.get('Коэффициент логистики', 115) / 100
+        T_COEF  = cfg.get('Коэффициент логистики', 115)
         STORE   = cfg.get('Хранение стоимость за шт.', 20)
-        DRR     = cfg.get('ДРР', 15) / 100
+        DRR     = cfg.get('ДРР', 15)
 
         # 7. Продажи и выручка
         print('📥 Загрузка планов продаж и выручки...')
@@ -152,35 +180,50 @@ def main():
         print('🔄 Начинаем обработку строк...')
         out = []
         skipped = 0
+
         for rowIdx, ps in enumerate(sales_data):
             org = ps[pIdx['Организация']]
-            art = ps[pIdx['Артикул_поставщика']]
-            if not art or str(org).lower().startswith('итого'):
+            wb_code = wb_code_key(ps[pIdx['Артикул_WB']])
+                    # ↓ Вместо art = norm_key(...), теперь wb_code
+
+            if not wb_code or str(org).lower().startswith('итого'):
                 continue
 
-            meta  = dicts.get(art, {'subj': '', 'volL': 0})
+            if wb_code not in dicts:
+                print(f"[WARN] Артикул_WB не найден в справочнике: |{wb_code}|")
+                print("Доступные артикула (фрагмент):", list(dicts.keys())[:10])
+
+            meta  = dicts.get(wb_code, {'subj': '', 'volL': 0, 'art_postav': ''})
+            print(f"[DEBUG] Предмет найден: {meta['subj']} для Артикул_WB {wb_code}")
+
             rate  = comm.get(meta['subj'], 0)
-            pr    = rev_data[rowIdx]
-            cKey  = f"{org}|{art}"
+            cKey  = f"{org}|{meta['art_postav']}"  # можно оставить как раньше, если у тебя в себестоимости ключ через Артикул_поставщика
             unitC = cogs.get(cKey, {'rub': 0, 'rubWo': 0})
             if cKey not in cogs:
-                print(f'Skip {art} ({org}) – no COGS found')
                 skipped += 1
 
+            pr = rev_data[rowIdx]
             for idx, mKey in enumerate(MONTHS):
                 qty = to_num(ps[pIdx.get(mKey, -1)]) if mKey in pIdx else 0
                 if not qty:
                     continue
                 rev = round(to_num(pr[rIdx.get(mKey, -1)])) if mKey in rIdx else 0
 
-                perUnitLog = (T_FIRST + max(meta['volL'] - 1, 0) * T_NEXT) * T_COEF
-                logiRub  = round(perUnitLog * qty)
+                vol = meta['volL'] if meta['volL'] else 0
+                if vol < 1:
+                    perUnitLog = T_FIRST * T_COEF
+                else:
+                    extra_liters = math.ceil(vol - 1)
+                    perUnitLog = (T_FIRST + extra_liters * T_NEXT) * T_COEF
+                logiRub = round(perUnitLog * qty)
+
                 commRub  = round(rev * rate)
                 advRub   = round(rev * DRR)
                 expMP    = commRub + logiRub + STORE * qty + advRub
 
+                # ВЫВОДИМ В РЕЗУЛЬТАТ Артикул_WB как 2-ю колонку!
                 out.append([
-                    org, art, meta['subj'], str(idx + 1).zfill(2),
+                    org, wb_code, meta['art_postav'], meta['subj'], str(idx + 1).zfill(2),
                     qty, rev, rate,
                     commRub, logiRub,
                     STORE * qty, advRub,
@@ -189,17 +232,19 @@ def main():
                     unitC['rubWo'] * qty
                 ])
 
+
         print(f'✅ Обработка завершена. Всего строк для вывода: {len(out)}')
         if skipped:
             print(f'Skipped items due to missing COGS: {skipped}')
 
         # 9. Корректное формирование и запись умной таблицы
         hdr = [
-            'Организация', 'Артикул_поставщика', 'Предмет', 'Месяц',
-            'Кол-во, шт',  'Выручка, ₽', 'Комиссия WB %', 'Комиссия WB, ₽',
-            'Логистика, ₽','Хранение, ₽','Реклама, ₽','Расходы МП, ₽',
-            'СебестоимостьПродажРуб', 'СебестоимостьПродажБезНДС'
-        ]
+        'Организация', 'Артикул_WB', 'Артикул_поставщика', 'Предмет', 'Месяц',
+        'Кол-во, шт',  'Выручка, ₽', 'Комиссия WB %', 'Комиссия WB, ₽',
+        'Логистика, ₽','Хранение, ₽','Реклама, ₽','Расходы МП, ₽',
+        'СебестоимостьПродажРуб', 'СебестоимостьПродажБезНДС'
+    ]
+
 
         def clean_number(x):
             if x is None or x == '':
@@ -274,13 +319,13 @@ def main():
         wb.save()
         print(f'🏁 [FINISH] Выполнение завершено за {round(time.time() - start, 1)} сек.')
         sheet = sh['result']
-        sheet.api.Tab.Color = 5296274  # насыщенно-зелёный
+        sheet.api.Tab.Color = 9687200  # насыщенно-зелёный
 
         # Если хочешь лист последним:
         # wb.sheets.move(sheet, after=wb.sheets[-1])
 
         # Если хочешь лист вторым:
-        sheet.api.Move(Before=wb.sheets[2].api)
+        sheet.api.Move(Before=wb.sheets[9].api)
 
 
         print('✅ Цвет вкладки и порядок листов применены.')

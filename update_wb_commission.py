@@ -65,13 +65,36 @@ def main():
         print(f"→ Загружено строк: {len(out) - 1}")
 
         # --- Создаём/очищаем целевой лист ---
-        if TARGET_SHEET not in [s.name for s in wb.sheets]:
-            sht_tar = wb.sheets.add(TARGET_SHEET, after=wb.sheets[-1])
-            print(f'→ Лист "{TARGET_SHEET}" создан')
+        
+        sheets = wb.sheets
+        n_target = 30
+
+        if TARGET_SHEET not in [s.name for s in sheets]:
+            # Если меньше 30 листов — добавим в конец, иначе на 30‑ю позицию
+            if len(sheets) < n_target:
+                sht_tar = sheets.add(TARGET_SHEET, after=sheets[-1])
+                print(f'→ Лист "{TARGET_SHEET}" создан в конце (меньше 30 листов)')
+            else:
+                sht_tar = sheets.add(TARGET_SHEET, before=sheets[n_target-1])
+                print(f'→ Лист "{TARGET_SHEET}" создан на позиции {n_target}')
         else:
-            sht_tar = wb.sheets[TARGET_SHEET]
+            sht_tar = sheets[TARGET_SHEET]
             sht_tar.clear()
             print(f'→ Лист "{TARGET_SHEET}" очищен')
+
+            # Переместим существующий лист на 30‑ю позицию, если надо
+            if sht_tar.index != n_target:
+                try:
+                    sht_tar.api.Move(Before=sheets[n_target-1].api)
+                    print(f'→ Лист "{TARGET_SHEET}" перемещён на позицию {n_target}')
+                except Exception as e:
+                    print(f"⚠️ Не удалось переместить лист: {e}")
+
+        # Цвет ярлыка #92D050
+        try:
+            sht_tar.api.Tab.Color =  142661105 # #92D050 (146,208,80)
+        except Exception as e:
+            print(f"⚠️ Не удалось задать цвет ярлыка: {e}")
 
         sht_tar.range('A1').value = out
 

@@ -99,6 +99,11 @@ def load_wb_prices_by_size_xlwings(wb=None):
             wb.close()
         return
     output_sh = get_or_create_sheet_with_header(wb, 'Цены_WB', HEADERS_RU)
+    try:
+        output_sh.api.Tab.Color = 142661105
+        log("→ Цвет ярлыка #84F8EA установлен")
+    except Exception as e:
+        log(f"⚠️ Не удалось установить цвет ярлыка: {e}")
 
     row_idx = 2
     any_data = False
@@ -178,8 +183,8 @@ def load_wb_prices_by_size_xlwings(wb=None):
 # ---
     # --- Переместить лист на позицию 14 ---
     try:
-        if output_sh.index != 14:
-            output_sh.api.Move(Before=wb.sheets[13].api)
+        if output_sh.index != 28:
+            output_sh.api.Move(Before=wb.sheets[28].api)
             log("→ Лист перемещён на позицию 14")
     except Exception as e:
         log(f"⚠️ Не удалось переместить лист: {e}")

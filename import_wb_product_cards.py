@@ -6,7 +6,7 @@ PRODUCTS_SHEET = 'Номенклатура_WB'
 HEADERS = [
     'Организация', 'Артикул_WB', 'Артикул_поставщика',
     'Бренд', 'Название', 'Предмет',
-    'Ширина', 'Высота', 'Длина', 'Вес_брутто'
+    'Ширина', 'Высота', 'Длина', 'Вес_брутто', 'Объем_литр'
 ]
 API_URL = 'https://content-api.wildberries.ru/content/v2/get/cards/list?locale=ru'
 LIMIT = 100
@@ -28,11 +28,9 @@ def main():
         sht_prod = wb.sheets[PRODUCTS_SHEET]
         print(f'Лист для загрузки карточек: {PRODUCTS_SHEET}')
 
-    # Очищаем полностью лист и пишем шапку
     sht_prod.clear()
     sht_prod.range('A1').value = HEADERS
 
-    # Форматируем шапку
     hdr_rng = sht_prod.range((1, 1), (1, len(HEADERS)))
     hdr_rng.api.Font.Bold = True
     hdr_rng.api.HorizontalAlignment = -4108  # xlCenter
@@ -42,7 +40,6 @@ def main():
         sht_prod.range((1, col)).api.EntireColumn.AutoFit()
     print('Выполнен автоподбор ширины колонок.')
 
-    # --- Чтение настроек организаций ---
     cfgHdr = sht_set.range('A1').expand('right').value
     print('Шапка листа настроек:', cfgHdr)
     idx = get_idx(cfgHdr)
@@ -60,7 +57,6 @@ def main():
     last_col = len(cfgHdr)
     settings = sht_set.range((2,1), (org_rows_count+1, last_col)).value
 
-    # --- Импорт карточек WB ---
     allCards = []
     for i, row in enumerate(settings):
         org = row[idx['Организация']]
@@ -71,7 +67,7 @@ def main():
             continue
         cursor = None
         page = 0
-        existSet = set()  # nmID карточек для данной организации
+        existSet = set()
         while True:
             page += 1
             payload = {
@@ -98,6 +94,15 @@ def main():
             for c in cards:
                 nm = str(c.get('nmID', ''))
                 if nm and nm not in existSet:
+                    width = c.get('dimensions', {}).get('width', '')
+                    height = c.get('dimensions', {}).get('height', '')
+                    length = c.get('dimensions', {}).get('length', '')
+                    # Считаем объем, если все размеры есть и являются числами
+                    try:
+                        vol_ltr = float(width) * float(height) * float(length) / 1000
+                        vol_ltr = round(vol_ltr, 3)
+                    except Exception:
+                        vol_ltr = ''
                     allCards.append([
                         org,
                         nm,
@@ -105,10 +110,9 @@ def main():
                         c.get('brand', ''),
                         c.get('title', ''),
                         c.get('subjectName', ''),
-                        c.get('dimensions', {}).get('width', ''),
-                        c.get('dimensions', {}).get('height', ''),
-                        c.get('dimensions', {}).get('length', ''),
-                        c.get('dimensions', {}).get('weightBrutto', '')
+                        width, height, length,
+                        c.get('dimensions', {}).get('weightBrutto', ''),
+                        vol_ltr
                     ])
                     existSet.add(nm)
 
@@ -121,16 +125,12 @@ def main():
 
     if allCards:
         sht_prod.range((2, 1)).value = allCards
-        sht_prod.range('B:B').number_format = '@'  # <--- Важно!
+        sht_prod.range('B:B').number_format = '@'
         print(f'✅ Добавлено новых карточек: {len(allCards)}')
     else:
         print('ℹ️ Новых карточек не найдено')
 
-
     print('=== END import_wb_product_cards ===')
 
 if __name__ == '__main__':
-    # Для отладки из терминала, если нужно:
-    # xw.Book('Finmodel.xlsm').set_mock_caller()
-    # main()
     pass

@@ -8,7 +8,7 @@ from datetime import datetime
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 EXCEL_PATH = os.path.join(BASE_DIR, 'Finmodel.xlsm')
 
-SHEET_SETTINGS = 'НастройкиОрганизаций'
+SHEET_SETTINGS = 'Настройки'
 SHEET_SEASON   = 'Сезонность'
 SHEET_SALES    = 'ФинотчетыОзон'
 SHEET_PRICES   = 'ЦеныОзон'
@@ -20,6 +20,19 @@ MONTHS_CNT = 12
 MONTH_NAMES = [f'Мес.{str(i+1).zfill(2)}' for i in range(MONTHS_CNT)]
 CURRENT_MONTH = datetime.now().month
 CURRENT_YEAR = datetime.now().year 
+
+import logging
+
+# Настройка логирования
+LOG_PATH = os.path.join(BASE_DIR, 'plan_sales_ozon.log')
+logging.basicConfig(
+    filename=LOG_PATH,
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    filemode='w'   # каждый раз перезаписывать лог (или 'a' для дописывания)
+)
+
+
 def normalize_sku(val):
     s = str(val).strip()
     if s.endswith('.0'):
@@ -60,6 +73,44 @@ def main():
     wb, app = get_workbook()
     print("→ Открыт файл:", wb.fullname)
 
+    # Чтение периода расчёта базовых продаж из листа "НастройкиОрганизаций"
+    settings_ws = wb.sheets[SHEET_SETTINGS]
+    settings_df = settings_ws.range(1, 1).expand().options(
+        pd.DataFrame, header=1, index_col=None
+    ).value
+
+    def find_setting(df, param):
+        """
+        Ищет строку с нужным параметром в индексе DataFrame
+        и возвращает значение из колонки 'Значение'.
+        Ищем сначала точное совпадение, затем по вхождению.
+        """
+        # точное совпадение
+        if param in df.index:
+            return df.loc[param, df.columns[0]]
+
+        # частичное (на случай лишних пробелов)
+        for idx in df.index.astype(str):
+            if param.lower() in idx.lower():
+                return df.loc[idx, df.columns[0]]
+        return None
+
+
+
+    period_from = find_setting(settings_df, 'Период с')
+    period_to   = find_setting(settings_df, 'Период по')
+    print('DEBUG:', period_from, period_to)  # для отладки, потом уберите
+    print("=== DEBUG: settings_df ===")
+    print(settings_df.to_string())
+
+    if not period_from or not period_to:
+        print('❌ Не найден период в настройках!')
+        if app: app.quit()
+        return
+
+    period_from = pd.to_datetime(period_from, dayfirst=True, errors='coerce')
+    period_to   = pd.to_datetime(period_to, dayfirst=True, errors='coerce')
+    print(f'→ Период для base: {period_from:%d.%m.%Y} — {period_to:%d.%m.%Y}')
     # 1. Сезонность
     season_df, _ = read_df(wb.sheets[SHEET_SEASON])
     season_factors = {
@@ -95,27 +146,44 @@ def main():
     sales_df['Год']        = sales_df['Год'].apply(safe_float).astype(int)
     sales_df['Месяц']      = sales_df['Месяц'].apply(safe_float).astype(int)
     sales_df['Продано шт.'] = sales_df['Продано шт.'].apply(safe_float)
-
+    sales_df['ДатаМесяца'] = pd.to_datetime(
+            sales_df['Год'].astype(str) + '-' + sales_df['Месяц'].astype(str).str.zfill(2) + '-01'
+        )
     # ► только текущий год
     sales_df = sales_df[sales_df['Год'] == CURRENT_YEAR]
+    print('Уникальные значения "Месяц":', sorted(sales_df['Месяц'].unique()))
 
-    # ► pivot-таблица 12 × месяцев
+    debug_df = sales_df[
+        (sales_df['Организация'] == 'ИП Закиров Р.Х.') &
+        (sales_df['SKU'].apply(normalize_sku) == normalize_sku('1499960988'))
+    ]
+    print(debug_df[['Год', 'Месяц', 'Артикул_поставщика', 'SKU', 'Продано шт.']])
+
     pivot = (
         sales_df
-        .pivot_table(index=['Организация', 'Артикул_поставщика', 'SKU'],
+        .pivot_table(index=['Организация', 'SKU'],
                     columns='Месяц',
                     values='Продано шт.',
                     aggfunc='sum',
                     fill_value=0)
-        .reindex(columns=range(1, 13), fill_value=0)   # 12 месяцев
+        .reindex(columns=range(1, 13), fill_value=0)
     )
 
-    qty_map, sku_to_offer = {}, {}
+    qty_map = {}
+    sku_to_offer = {}
 
-    for (org, offer, sku), row in pivot.iterrows():      # ← БЕЗ reset_index()
-        key = (str(org), normalize_sku(sku))
-        qty_map[key]      = row.tolist()                 # значения месяцев 1-12
-        sku_to_offer[key] = str(offer)
+    for (org, sku), row in pivot.iterrows():
+        key = (str(org).strip(), normalize_sku(sku))
+        qty_map[key] = row.tolist()
+        df_found = sales_df[
+            (sales_df['Организация'] == org) &
+            (sales_df['SKU'].apply(normalize_sku) == normalize_sku(sku))
+        ]
+        offer = str(df_found['Артикул_поставщика'].iloc[0]) if not df_found.empty else ''
+        sku_to_offer[key] = offer.strip()
+
+
+
 
 
     # 3. Цены
@@ -131,21 +199,43 @@ def main():
 
     # 4. План
     rows = []
+    logging.info("==== Начат расчет плана продаж Ozon ====")
+
     for (org, sku), hist in qty_map.items():
-        done_months = [q for q in hist[:CURRENT_MONTH] if q > 0]
+                # Отбор строк по организации, SKU и периоду
+        org_mask = sales_df['Организация'] == org
+        sku_mask = sales_df['SKU'].apply(normalize_sku) == normalize_sku(sku)
+        period_mask = (sales_df['ДатаМесяца'] >= period_from) & (sales_df['ДатаМесяца'] <= period_to)
+        mask = org_mask & sku_mask & period_mask
+        df_period = sales_df[mask].sort_values('ДатаМесяца')
+
+        done_months = df_period['Продано шт.'][df_period['Продано шт.'] > 0].tolist()
+
+        msg_head = f"{org} | {sku_to_offer[(org, sku)]} | {sku} | Месяцы: {hist}"
         if not done_months:
+            logging.warning(f"{msg_head} | Нет фактических продаж за {CURRENT_MONTH} месяцев — пропускаем.")
             continue
-        base    = round(sum(done_months) / len(done_months))   # ← делим не на 6, а на кол-во месяцев с продажами
+        base    = round(sum(done_months) / len(done_months)) if done_months else 0
+
         factors = season_factors.get(sku, [1.0] * MONTHS_CNT)
         price   = price_map.get(sku_to_offer[(org, sku)], 0.0)
+        plan = []
+        for i in range(MONTHS_CNT):
+            if i < CURRENT_MONTH - 1:
+                plan.append(round(hist[i]))
+            else:
+                plan.append(round(base * factors[i]))
 
-        plan = [
-            round(hist[i]) if i < CURRENT_MONTH - 1 else round(base * factors[i])
-            for i in range(MONTHS_CNT)
-        ]
+        row_info = (f"{msg_head} | Базовое: {base} | План: {plan}")
+        # Добавляем отметку, если май = 0
+        if plan[4] == 0:
+            logging.error(f"{row_info} | ВНИМАНИЕ: Месяц 5 (Май) = 0!")
+        else:
+            logging.info(row_info)
         if sum(plan) == 0:
             continue
         rows.append([org, sku_to_offer[(org, sku)], sku, base, price, *plan])
+
 
     # Сортировка по сумме продаж
     rows.sort(key=lambda r: -sum(r[5:5+MONTHS_CNT]))
@@ -166,7 +256,7 @@ def main():
     try:
         plan_ws.api.Tab.Color = (0, 192, 255)  # BGR!
         if plan_ws.index != 3:
-            plan_ws.api.Move(Before=wb.sheets[2].api)
+            plan_ws.api.Move(Before=wb.sheets[13].api)
         print("→ Установлен цвет ярлыка #FFC000 и позиция №3")
     except Exception as e:
         print(f"⚠️ Не удалось установить цвет/позицию листа: {e}")
@@ -211,30 +301,34 @@ def main():
 
 
 def get_workbook():
-    """Возвращает (wb, app). 
+    """Возвращает (wb, app).
     Если книга уже открыта в Excel — берём её,
     иначе создаём невидимый экземпляр и открываем файл."""
     try:
-        # 1) вызов из макроса
         wb = xw.Book.caller()
         print('→ Запуск из Excel-макроса')
         return wb, None
     except Exception:
-        pass  # не из макроса
+        pass
 
-    # 2) запущено из терминала
-    #    пробуем найти уже открытую копию
+    # Проверяем среди открытых книг только те, что имеют существующий путь
     for app in xw.apps:
         for bk in app.books:
-            if bk.fullname and os.path.samefile(bk.fullname, EXCEL_PATH):
-                print('→ Используем уже открытую книгу')
-                return bk, None          # !!! app = None → не закрываем чужой Excel
+            try:
+                if bk.fullname \
+                   and os.path.exists(bk.fullname) \
+                   and os.path.samefile(bk.fullname, EXCEL_PATH):
+                    print('→ Используем уже открытую книгу')
+                    return bk, None
+            except Exception:
+                continue  # пропускаем книги без файла
 
-    # 3) книги нет — открываем новую (невидимо)
     app = xw.App(visible=False, add_book=False)
-    wb  = app.books.open(EXCEL_PATH, update_links=False)  # по-умолчанию read_only=False
+    wb = app.books.open(EXCEL_PATH, update_links=False)
     print('→ Книга была закрыта, открыли новую копию')
     return wb, app
+
+logging.info("==== Расчет завершён ====")
 
 
 if __name__ == '__main__':

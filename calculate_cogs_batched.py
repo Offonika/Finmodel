@@ -7,6 +7,20 @@ import math
 import logging, datetime, pathlib
 RUS_TO_LAT = str.maketrans("АВЕКМНОРСТХ",
                            "ABEKMHOPCTX")  # кир → лат
+# --- Вставь сразу после import'ов ---
+def rgb_to_excel_tab_color(r, g, b):
+    """Преобразует RGB в BGR-целое для ws.api.Tab.Color (Excel COM)."""
+    return b + g * 256 + r * 256 * 256
+
+def hex_to_excel_tab_color(hex_str):
+    """HEX #RRGGBB в Tab.Color (BGR-целое)."""
+    hex_str = hex_str.strip().lstrip('#')
+    if len(hex_str) != 6:
+        raise ValueError("HEX должен быть 6 символов, например, #92D050")
+    r = int(hex_str[0:2], 16)
+    g = int(hex_str[2:4], 16)
+    b = int(hex_str[4:6], 16)
+    return rgb_to_excel_tab_color(r, g, b)
 
 def norm(key: str) -> str:
     """
@@ -61,6 +75,8 @@ SHEET_PRODUCTS = 'Номенклатура_WB'
 SHEET_PRICES   = 'ЗакупочныеЦены'
 SHEET_DUTIES   = 'ТаможенныеПошлины'
 SHEET_SETTINGS = 'Настройки'
+SHEET_ORGS = 'НастройкиОрганизаций'
+
 SHEET_RESULT   = 'РасчётСебестоимости'
 TABLE_NAME     = 'CogsTable'
 TABLE_STYLE    = 'TableStyleMedium7'
@@ -113,15 +129,15 @@ def read_settings(ws):
         "cnyRate": get_num('Курс_CNY'),
         "ndsRateWhite": get_num('НДС_Белая', 0) / 100.0 if get_num('НДС_Белая', 0) > 1 else get_num('НДС_Белая', 0)
     }
-
-def get_logistics_mode(org, ws):
-    vals = ws.range(1, 1).expand().options(pd.DataFrame, header=1, index=False).value
-    row = vals[vals.iloc[:, 0] == org]
+def get_logistics_mode(org, orgs_ws):
+    df = orgs_ws.range(1, 1).expand().options(pd.DataFrame, header=1, index=False).value
+    row = df[df.iloc[:, 0] == org]
     if not row.empty and 'Тип_Логистики' in row.columns:
         val = row.iloc[0]['Тип_Логистики']
         if isinstance(val, str) and 'бел' in val.lower():
             return 'Белая'
     return 'Карго'
+
 
 def get_progress(ws):
     try:
@@ -146,6 +162,7 @@ def main():
             prod_ws     = wb.sheets[SHEET_PRODUCTS]
             price_ws    = wb.sheets[SHEET_PRICES]
             duty_ws     = wb.sheets[SHEET_DUTIES]
+            orgs_ws     = wb.sheets[SHEET_ORGS]
             settings_ws = wb.sheets[SHEET_SETTINGS]
         except Exception as e:
             print(f"❌ Не найден один из листов: {e}")
@@ -162,14 +179,51 @@ def main():
         duty_df  = duty_ws.range(1,1).expand().options(pd.DataFrame, header=1, index=False).value
 
         # 4. Строим словари для быстрого поиска
-        price_dict = {norm(r['Артикул_поставщика']): r
-                      for _, r in price_df.iterrows()}
-        duty_dict  = {str(r['Предмет']).strip(): r
-                      for _, r in duty_df.iterrows()}
+        price_dict = {norm(r['Артикул_поставщика']): r for _, r in price_df.iterrows()}
+        duty_dict  = {str(r['Предмет']).strip(): r for _, r in duty_df.iterrows()}
 
-        # 5. Готовим лист результата
+        # --- ДОБАВЬ ЭТОТ БЛОК ---
+
+        # Логируем список всех уникальных предметов из товаров и из пошлин
+        unique_subjects_products = set(str(row['Предмет']).strip() for _, row in prod_df.iterrows())
+        unique_subjects_duties   = set(str(row['Предмет']).strip() for _, row in duty_df.iterrows())
+
+        log(f"[INFO] Всего уникальных предметов в товарах: {len(unique_subjects_products)}")
+        log(f"[INFO] Всего уникальных предметов в пошлинах: {len(unique_subjects_duties)}")
+
+        missing_in_duties = sorted(s for s in unique_subjects_products if s not in unique_subjects_duties)
+        if missing_in_duties:
+            log(f"[WARN] В пошлинах отсутствуют {len(missing_in_duties)} предметов из товаров. Примеры: {missing_in_duties[:10]}")
+        else:
+            log("[INFO] Все предметы из товаров найдены в пошлинах.")
+
+        extra_in_duties = sorted(s for s in unique_subjects_duties if s not in unique_subjects_products)
+        if extra_in_duties:
+            log(f"[INFO] В пошлинах есть {len(extra_in_duties)} лишних предметов, которых нет в товарах. Примеры: {extra_in_duties[:10]}")
+
+
+        
+  # 5. Готовим лист результата
         result_ws = wb.sheets[SHEET_RESULT] if SHEET_RESULT in [s.name for s in wb.sheets] \
                     else wb.sheets.add(SHEET_RESULT)
+
+        # --- Установка цвета ярлыка #92D050 (зелёный) ---
+        try:
+            result_ws.api.Tab.Color = hex_to_excel_tab_color("#92D050")  # <--- Вот так!
+        except Exception as e:
+            print(f"⚠️ Не удалось задать цвет ярлыка: {e}")
+
+        # --- Перемещение листа на 11-ю позицию ---
+        try:
+            if result_ws.index != 11:
+                result_ws.api.Move(Before=wb.sheets[10].api)
+                print("→ Лист 'РасчётСебестоимости' перемещён на позицию 11")
+        except Exception as e:
+            print(f"⚠️ Не удалось переместить лист: {e}")
+
+            
+     
+
         header = ['Организация','Артикул_поставщика','Предмет','Наименование',
                   'Закуп_Цена_руб','Логистика_руб','Пошлина_руб','НДС_руб',
                   'Себестоимость_руб','Себестоимость_без_НДС_руб','Входящий_НДС_руб']
@@ -205,16 +259,28 @@ def main():
                 purchase_rub = price_val * rate
 
                 duty_row       = duty_dict.get(subject)
-                logistics_mode = get_logistics_mode(org, settings_ws)
+                logistics_mode = get_logistics_mode(org, orgs_ws)
+
                 kg_rate        = global_params['cargoRatePerKg'] if logistics_mode=='Карго' \
-                               else global_params['whiteRatePerKg']
+                            else global_params['whiteRatePerKg']
                 logistics_rub  = weight * kg_rate * global_params['usdRate']
 
                 duty_rate = 0
                 if logistics_mode == 'Белая' and duty_row is not None:
-                    raw = duty_row.get('Пошлина')
-                    duty_rate = float(str(raw).replace('%','').replace(',','.'))/100 if raw else 0
+                    raw = duty_row.get('Ставка_пошлины') or duty_row.get('Пошлина')
+                    log(f"Пошлина для {subject}: raw={raw}", "info")
+                    if raw:
+                        raw_str = str(raw).replace('%','').replace(',','.').strip()
+                        try:
+                            if float(raw_str) < 1:   # Уже доля, например 0.142 → не делим
+                                duty_rate = float(raw_str)
+                            else:                   # Вдруг где-то 14.2 → делим
+                                duty_rate = float(raw_str) / 100
+                        except Exception as e:
+                            log(f"[ERROR] Не удалось привести raw='{raw}' к числу: {e}", "error")
                 duty_rub = purchase_rub * duty_rate
+
+
                 vat_rub  = (purchase_rub + duty_rub + logistics_rub) * global_params['ndsRateWhite'] \
                            if logistics_mode == 'Белая' else 0
 
@@ -234,7 +300,7 @@ def main():
                 log(f"добавлено строк: {len(batch_out)}")
 
         log(f"Расчёт завершён. Итоговых строк: {first_free-2}, пропущено без цены: {skipped}")
-        print(f"✓ COGS рассчитан: {first_free-2} строк, пропусков {skipped}")
+        #print(f"✓ COGS рассчитан: {first_free-2} строк, пропусков {skipped}")
 
         # 7. Оформляем умную таблицу
         for tbl in result_ws.tables:

@@ -91,10 +91,10 @@ def main():
 
     # Переместить лист на позицию 9 (если надо)
     try:
-        if out_ws.index != 10  and  len(wb.sheets) >= 9:
-            before_sheet = wb.sheets[8]
+        if out_ws.index != 15  and  len(wb.sheets) >= 16:
+            before_sheet = wb.sheets[15]
             out_ws.api.Move(Before=before_sheet.api)
-            print("→ Лист перемещён на позицию 9")
+            print("→ Лист перемещён на позицию 15")
     except Exception as e:
         print(f"⚠️ Не удалось переместить лист: {e}")
 

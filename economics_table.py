@@ -147,7 +147,12 @@ def build_ozon_economics_table():
         ws_settings = wb.sheets[SHEET_SETTINGS]
         ws_target   = wb.sheets[SHEET_TARGET] if SHEET_TARGET in [s.name for s in wb.sheets] \
                       else wb.sheets.add(SHEET_TARGET, after=wb.sheets[SHEET_PLAN])
-
+        try:
+            if ws_target.index != 11:
+                ws_target.api.Move(Before=wb.sheets[10].api)
+                print("→ Лист 'РасчетЭкономикиОзон' перемещён на позицию 11")
+        except Exception as e:
+            print(f"⚠️ Не удалось переместить лист: {e}")
         cfg = _load_settings(ws_settings)
         get = lambda key: cfg.get(key, Decimal("0"))
 

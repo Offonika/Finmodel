@@ -327,7 +327,7 @@ def main():
         print(f"⚠️ Не удалось установить цвет ярлыка: {e}")
     try:
         sheet_count = len(wb.sheets)
-        pos = 7 if sheet_count >= 7 else sheet_count
+        pos = 12 if sheet_count >= 12 else sheet_count
         if plan_ws.index != pos:
             plan_ws.api.Move(Before=wb.sheets[pos].api)
         print(f"→ Лист перемещён на позицию {pos}")

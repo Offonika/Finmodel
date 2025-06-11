@@ -154,8 +154,8 @@ def write_to_excel(df: pd.DataFrame):
         # Переместить лист на позицию 11
         try:
             if ws.index != 11:
-                ws.api.Move(Before=ws.book.sheets[10].api)
-                print("→ Лист перемещён на позицию 11")
+                ws.api.Move(Before=ws.book.sheets[17].api)
+                print("→ Лист перемещён на позицию 17")
         except Exception as e:
             print(f"⚠️ Не удалось переместить лист: {e}")
 

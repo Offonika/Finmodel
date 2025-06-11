@@ -113,6 +113,14 @@ def nds_rate(prev, curr, mode, def_r):
         return max(5, def_r)
     return def_r
 
+def log_nds(month, org, prev, curr, mode, rate, lvl):
+    """Короткий лог выбора ставки НДС.
+       lvl = 'M' — для общей (Monthly), 'O' — для организации."""
+    print(f"[NDS-{lvl}] {month:>2} | {org:<20} | prev={prev:,.0f} "
+          f"→ curr={curr:,.0f} | mode={mode:<8} | rate={rate}%")
+
+
+
 # ---------- 4. Главная функция --------------------------------------------
 def fill_planned_indicators():
     headers = ['Организация', 'Месяц', 'Выручка, ₽', 'Выручка накоп., ₽',
@@ -228,16 +236,37 @@ def fill_planned_indicators():
         org_cfg = {}
         for r in cfg_rows:
             org = r[cfg_idx['организация']]
+
+            # --- ставка НДС/УСН (как было) ---
             nds = parse_money(str(r[cfg_idx.get('ставка ндс', '')]).replace('%', '').replace(',', '.'))
             nds = nds * 100 if 0 < nds < 1 else nds
             usn = parse_money(str(r[cfg_idx.get('ставканалогаусн', '')]).replace('%', '').replace(',', '.'))
             usn = usn * 100 if 0 < usn < 1 else usn
+
+            # --- режим налогообложения ---
+            col_new = cfg_idx.get('режимналогооблnew')
+            col_old = cfg_idx.get('режим_налогообложения')     # оставим поддержку старого
+            mode_val = 'ОСНО'                                   # дефолт
+            src_col  = 'default'
+            if col_new is not None and str(r[col_new]).strip():
+                mode_val = str(r[col_new]).strip()
+                src_col  = 'New'
+            elif col_old is not None and str(r[col_old]).strip():
+                mode_val = str(r[col_old]).strip()
+                src_col  = 'Old'
+
+            # логируем выбор
+            if app is None:
+                print(f"[CFG] {org:<20} режим ← {src_col}: {mode_val}")
+
             org_cfg[org] = dict(
                 type=str(r[cfg_idx.get('тип_организации', '')]).strip() or 'ООО',
-                orig_mode=str(r[cfg_idx.get('режимналогооблnew', '')]).strip() or 'ОСНО',
+                orig_mode=mode_val,
                 consolidation=str(r[cfg_idx.get('консолидация', '')]).strip().lower() != 'нет',
-                nds_rate=nds, usn_rate=usn
+                nds_rate=nds,
+                usn_rate=usn
             )
+
 
         # === 4.6 Зарплата и прочие расходы ==============================
         salary = {}
@@ -271,6 +300,21 @@ def fill_planned_indicators():
         for m in months:
             s += rev_m[m]; cum_all[m] = s
 
+# --- ставка НДС по консолидированному обороту на каждый месяц ---
+
+        nds_by_month = {}
+        prev_gross = 0
+        for m in months:
+            curr_gross = cum_all[m]
+            # здесь ДОЛЖНО быть 'Доходы', а не 'ОСНО'
+            rateM = nds_rate(prev_gross, curr_gross, 'Доходы', 0)
+            nds_by_month[m] = rateM
+            log_nds(m, 'ALL', prev_gross, curr_gross, 'CONS', rateM, 'M')
+            prev_gross = curr_gross
+
+
+
+
         cum_org = {org: {} for org in {g['org'] for g in records}}
         for org in cum_org:
             run = 0
@@ -279,41 +323,54 @@ def fill_planned_indicators():
                 cum_org[org][m] = run
 
         # === 4.8 Основной расчёт =======================================
+
         p_rev, p_ebit, p_net, last_mode = {}, {}, {}, {}
         out = []
+
         for g in records:
             cfg = org_cfg.get(g['org'], dict(orig_mode='ОСНО', consolidation=False,
                                             nds_rate=0, usn_rate=0, type='ООО'))
             mode_eff = cfg['orig_mode']
+
+            # --- выбор “гросс” выручки ---
             gross = cum_all[g['month']] if cfg['consolidation'] else cum_org[g['org']][g['month']]
             if cfg['orig_mode'] in ('Доходы', 'Доходы-Расходы') and gross > LIMIT_GROSS_USN:
                 mode_eff = 'ОСНО'
 
-            prev = p_rev.get(g['org'], 0)
-            nds = nds_rate(prev, prev + g['rev'], mode_eff, cfg['nds_rate'])
+            
+    # --- ставка НДС ---
+            if cfg['consolidation']:
+                nds = nds_by_month[g['month']]            # ❶ сначала значение
+                prev_g = cum_all.get(g['month'] - 1, 0)
+                curr_g = cum_all[g['month']]
+                log_nds(g['month'], g['org'], prev_g, curr_g, mode_eff, nds, 'O')  # ❷ потом лог
+            else:
+                prev = p_rev.get(g['org'], 0)
+                nds  = nds_rate(prev, prev + g['rev'], mode_eff, cfg['nds_rate'])   # ❶
+                prev_g, curr_g = prev, prev + g['rev'] 
 
-            # --- выручка и НДС ---
-            revN    = g['rev'] / (1 + nds / 100)     # выручка без НДС
-            nds_sum = g['rev'] - revN                # сумма НДС
+        # --- нижний предел из «Ставка НДС» в настройках ---
+            nds = max(nds, cfg['nds_rate'])         # ← ДОБАВЛЕННАЯ строка
 
-            # --- расходы МП ---
-            mpGross = g['mp']                        # с НДС (как в исходных таблицах)
-            mpN     = mpGross / 1.2                  # без НДС  (ставка 20 %)
+            # --- лог после окончательного значения ---
+            log_nds(g['month'], g['org'], prev_g, curr_g, mode_eff, nds, 'O')
+            # ---------- расчёт показателей ----------
+            revN    = g['rev'] / (1 + nds / 100)
+            nds_sum = g['rev'] - revN
 
-            # --- зарплата/ЕСН/прочее ---
+            mpGross = g['mp']
+            mpNet   = mpGross / 1.2
+
             sal = salary.get(g['org'], dict(fot=0, mode='Неформ'))
             fot = sal['fot']
             esn = fot * 0.30 if sal['mode'] == 'Официальная' else 0
             oth_cost = other.get(g['org'], 0)
 
-            # --- себестоимость ---
             cost_base = g['cn'] if round(nds) == 20 else g['cr']
+            ebit = revN - (cost_base + mpNet + fot + esn + oth_cost)
 
-            # --- EBIT ---
-            ebit = revN - (cost_base + mpN + fot + esn + oth_cost)
-
-            # --- аккумулируем промежуточные суммы (как было) ---
-            p_rev[g['org']] = prev + g['rev']
+            # --- аккумулируем ---
+            p_rev[g['org']]  = p_rev.get(g['org'], 0) + g['rev']
             p_ebit[g['org']] = p_ebit.get(g['org'], 0) + ebit
             p_net[g['org']]  = p_net.get(g['org'], 0) + revN
 
@@ -321,13 +378,12 @@ def fill_planned_indicators():
                 org=g['org'], m=g['month'], rev=g['rev'], cumG=gross,
                 revN=revN, ndsSum=nds_sum, nds=nds,
                 cr=g['cr'], cn=g['cn'],
-                mpGross=mpGross,          # ← сохраняем
-                mpNet=mpN,                # ← сохраняем
+                mpGross=mpGross, mpNet=mpNet,
                 fot=fot, esn=esn, oth=oth_cost, ebit=ebit,
                 cumN=p_net[g['org']], cumE=p_ebit[g['org']],
                 mode=mode_eff, type=cfg['type'], prevM=last_mode.get(g['org']),
-                usn=cfg['usn_rate']
-            ))
+                usn=cfg['usn_rate'])
+            )
             last_mode[g['org']] = mode_eff
 
 
@@ -458,22 +514,23 @@ def fill_planned_indicators():
             wb.app.screen_updating = screen
 
         # ------ «псевдо-итого» сразу под таблицей -----------------------
-        from xlwings.utils import col_name            # преобразует 1 → 'A'
-        total_row = sh.range(1, 1).end('down').row + 1
+        from xlwings.utils import col_name
+
+        total_row = last_row + 1                 # ← исправили
         sh.range(total_row, 1).value = 'Итого'
 
         for idx, col in enumerate(headers, start=1):
             if col in ruble_cols:
                 letter = col_name(idx)
                 sh.range(total_row, idx).formula = \
-                    f"=SUBTOTAL(109,{letter}$2:{letter}${total_row-1})"
+                    f"=SUBTOTAL(109,{letter}$2:{letter}${last_row})"
                 sh.range(total_row, idx).number_format = fmt
 
 
         # ------ ярлык и позиция листа ----------------------------------
         sh.api.Tab.ColorIndex = 10
         if sh.index != 3:
-            sh.api.Move(Before=ss.sheets[2].api)
+            sh.api.Move(Before=ss.sheets[8].api)
 
         print(f'✔️  Готово! Записано строк: {len(rows_out)}')
 
