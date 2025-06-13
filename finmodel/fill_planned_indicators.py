@@ -269,19 +269,42 @@ def fill_planned_indicators():
 
 
         # === 4.6 Зарплата и прочие расходы ==============================
+        
         salary = {}
         if SHEET_SAL in sheet_names:
             sal_rows, sal_idx = read_rows(ss.sheets[SHEET_SAL])
             for r in sal_rows:
                 salary[r[sal_idx['организация']]] = dict(
                     fot=parse_money(r[sal_idx['фот']]),
-                    mode=str(r[sal_idx['режим_зп']]).strip())
+                    mode=str(r[sal_idx['режим_зп']]).strip()
+                )
 
-        other = {}
+        other = {}                        # <-- теперь ключ (org, month)
         if SHEET_OTH in sheet_names:
-            oth_rows, _ = read_rows(ss.sheets[SHEET_OTH])
-            for org, val in oth_rows:
-                other[org] = parse_money(val)
+            oth_rows, oth_idx = read_rows(ss.sheets[SHEET_OTH])
+
+            # проверяем важные колонки
+            for col in ('месяц', 'организация', 'расходы'):
+                if col not in oth_idx:
+                    raise ValueError(f"Колонка «{col}» отсутствует в {SHEET_OTH}")
+
+            for r in oth_rows:
+                org_raw  = r[oth_idx['организация']]
+                if not org_raw:                               # пустая строка → пропускаем
+                    continue
+                org = str(org_raw).strip()
+                if org.lower() in ('итого', 'total'):
+                    continue                                  # строка-итого
+
+                # корректно разбираем месяц
+                month = parse_month(r[oth_idx['месяц']])
+                if not 1 <= month <= 12:
+                    continue
+
+                val = parse_money(r[oth_idx['расходы']])
+                key = (org, month)
+                other[key] = other.get(key, 0) + val
+
 
         # === 4.7 Группировка по (org, month) ============================
         grouped = {}
@@ -338,22 +361,32 @@ def fill_planned_indicators():
                 mode_eff = 'ОСНО'
 
             
-    # --- ставка НДС ---
-            if cfg['consolidation']:
-                nds = nds_by_month[g['month']]            # ❶ сначала значение
-                prev_g = cum_all.get(g['month'] - 1, 0)
-                curr_g = cum_all[g['month']]
-                log_nds(g['month'], g['org'], prev_g, curr_g, mode_eff, nds, 'O')  # ❷ потом лог
-            else:
-                prev = p_rev.get(g['org'], 0)
-                nds  = nds_rate(prev, prev + g['rev'], mode_eff, cfg['nds_rate'])   # ❶
-                prev_g, curr_g = prev, prev + g['rev'] 
 
-        # --- нижний предел из «Ставка НДС» в настройках ---
-            nds = max(nds, cfg['nds_rate'])         # ← ДОБАВЛЕННАЯ строка
+    # --- ставка НДС и подготовка к логированию ---
+            if mode_eff == 'ОСНО':
+                nds = 20
+                if cfg['consolidation']:
+                    prev_g = cum_all.get(g['month'] - 1, 0)
+                    curr_g = cum_all[g['month']]
+                else:
+                    prev_g = p_rev.get(g['org'], 0)
+                    curr_g = prev_g + g['rev']
+            else:
+                if cfg['consolidation']:
+                    nds = nds_by_month[g['month']]
+                    prev_g = cum_all.get(g['month'] - 1, 0)
+                    curr_g = cum_all[g['month']]
+                else:
+                    prev_g = p_rev.get(g['org'], 0)
+                    curr_g = prev_g + g['rev']
+                    nds = nds_rate(prev_g, curr_g, mode_eff, cfg['nds_rate'])
+
+                nds = max(nds, cfg['nds_rate'])   # нижний предел
 
             # --- лог после окончательного значения ---
             log_nds(g['month'], g['org'], prev_g, curr_g, mode_eff, nds, 'O')
+
+
             # ---------- расчёт показателей ----------
             revN    = g['rev'] / (1 + nds / 100)
             nds_sum = g['rev'] - revN
@@ -364,10 +397,20 @@ def fill_planned_indicators():
             sal = salary.get(g['org'], dict(fot=0, mode='Неформ'))
             fot = sal['fot']
             esn = fot * 0.30 if sal['mode'] == 'Официальная' else 0
-            oth_cost = other.get(g['org'], 0)
+            oth_cost = other.get((g['org'], g['month']), 0)
 
-            cost_base = g['cn'] if round(nds) == 20 else g['cr']
-            ebit = revN - (cost_base + mpNet + fot + esn + oth_cost)
+
+            mpGross = g['mp']
+
+            if round(nds) == 20:
+                cost_base = g['cn']
+                mp_value  = mpGross / 1.2
+            else:
+                cost_base = g['cr']
+                mp_value  = mpGross
+
+            ebit = revN - (cost_base + mp_value + fot + esn + oth_cost)
+
 
             # --- аккумулируем ---
             p_rev[g['org']]  = p_rev.get(g['org'], 0) + g['rev']

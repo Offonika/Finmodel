@@ -1,0 +1,6 @@
+[project]
+name = "finmodel"
+version = "0.0.0"
+description = "Finmodel automation package"
+authors = [{ name = "Offonika", email = "you@example.com" }]
+license = { text = "Proprietary" }
