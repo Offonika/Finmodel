@@ -6,7 +6,7 @@ import pandas as pd
 import re
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-EXCEL_PATH = os.path.join(BASE_DIR, 'Finmodel.xlsm') 
+EXCEL_PATH = os.path.join(BASE_DIR, 'excel', 'Finmodel.xlsm') 
 
 
 SHEET_SALES   = 'План_ПродажWB'

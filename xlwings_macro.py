@@ -1,5 +1,5 @@
 import xlwings as xw
-from main import main
+from scripts.main import main
 from wb_prices import load_wb_prices_by_size_xlwings
 
 

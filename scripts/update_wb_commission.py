@@ -6,7 +6,7 @@ import requests
 
 # ==== КОНСТАНТЫ ====
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-EXCEL_PATH = os.path.join(BASE_DIR, 'Finmodel.xlsm')
+EXCEL_PATH = os.path.join(BASE_DIR, 'excel', 'Finmodel.xlsm')
 SETTINGS_SHEET = 'НастройкиОрганизаций'
 TARGET_SHEET = 'КомиссияWB'
 HEADERS = ['Parent Category', 'Subject Name', 'Commission, %']

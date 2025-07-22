@@ -9,5 +9,6 @@ __pycache__/
 venv/
 # данные Excel
 *.xlsm
+!excel/Finmodel.xlsm
 # логи
 *.log

@@ -36,8 +36,8 @@ def log_info(msg):
 def parse_args():
     p = argparse.ArgumentParser(add_help=False,
                                 description='Пересчёт плановых показателей')
-    p.add_argument('-f', '--file', default='Finmodel.xlsm',
-                   help='Имя Excel-книги (по умолчанию Finmodel.xlsm)')
+    p.add_argument('-f', '--file', default='excel/Finmodel.xlsm',
+                   help='Имя Excel-книги (по умолчанию excel/Finmodel.xlsm)')
     args, _ = p.parse_known_args()       # игнорируем лишние флаги xlwings
     return args
 ARGS = parse_args()

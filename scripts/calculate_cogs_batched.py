@@ -67,7 +67,7 @@ def log(msg, level="info"):
     # если хотите видеть всё ещё и в консоли, раскомментируйте:
     # print(msg)
 # --------------------------------
-EXCEL_PATH = os.path.join(BASE_DIR, 'Finmodel.xlsm')
+EXCEL_PATH = os.path.join(BASE_DIR, 'excel', 'Finmodel.xlsm')
 
 
 # ЗАМЕНЁННЫЕ НАЗВАНИЯ ЛИСТОВ
