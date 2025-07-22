@@ -229,7 +229,7 @@ def main():
                 deliv = r.get('delivery_commission') or {}
                 ret   = r.get('return_commission')   or {}
 
-                offer = normalize_offer_id(it.get('offer_id', ''))
+                offer = str(it.get('offer_id', '')).strip()
                 key = (
                     org, p['year'], p['month'],
                     offer, it.get('sku', ''), it.get('barcode', ''), it.get('name', '')
