@@ -17,7 +17,7 @@ def normalize(s):
 
 # CLI
 PAR = argparse.ArgumentParser(description="Scenario profit calculator")
-PAR.add_argument("-f", "--file", default="Finmodel.xlsm", help="Excel‑workbook")
+PAR.add_argument("-f", "--file", default="excel/Finmodel.xlsm", help="Excel‑workbook")
 ARGS = PAR.parse_args()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

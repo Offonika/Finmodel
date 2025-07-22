@@ -12,7 +12,7 @@ SHEET_LOG       = "WB_Log"
 WB_API_URL_STAT = "https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod"
 BATCH_SIZE_WB   = 100000
 
-EXCEL_FILE_PATH = r"C:\Users\Public\Finmodel\Finmodel.xlsm"
+EXCEL_FILE_PATH = r"C:\Users\Public\Finmodel\excel\Finmodel.xlsm"
 
 def get_idx(header):
     return {str(h).strip(): i for i, h in enumerate(header)}

@@ -33,7 +33,7 @@ SUMMARY_FIELDS = ['Организация', 'Сценарий', 'ФОТ_белы
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(SCRIPT_DIR)           # ← папка Finmodel
-EXCEL_PATH  = os.path.join(PROJECT_DIR, 'Finmodel.xlsm')
+EXCEL_PATH  = os.path.join(PROJECT_DIR, 'excel', 'Finmodel.xlsm')
 LOG_DIR     = os.path.join(PROJECT_DIR, 'log')
 
 os.makedirs(LOG_DIR, exist_ok=True)

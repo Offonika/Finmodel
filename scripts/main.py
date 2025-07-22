@@ -8,7 +8,7 @@ def main():
     org_folder = r"C:\Users\Public\Finmodel\НачисленияУслугОзон\ИП Закирова Р.Х"
     files_df = load_files(org_folder)
     result_df = aggregate_data(files_df)
-    output_path = r"C:\Users\Public\Finmodel\Finmodel.xlsm"
+    output_path = r"C:\Users\Public\Finmodel\excel\Finmodel.xlsm"
     sheet = 'НачисленияУслугОзон'
     table = 'НачисленияУслугОзонTable'
     # 1. Сохраняем просто DataFrame на лист

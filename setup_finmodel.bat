@@ -76,17 +76,17 @@ exit /b
 :: ---------- 4. Финал ---------------------------------------------------------
 :finish
 rem 4.1 Копируем шаблон Excel
-if not exist "Finmodel.xlsm" (
+if not exist "excel\Finmodel.xlsm" (
     if exist "excel\Finmodel_Template.xlsm" (
         echo 📄 Копирую шаблон…
         echo [INFO] Copying template>>"%LOGFILE%"
-        copy "excel\Finmodel_Template.xlsm" "Finmodel.xlsm" >>"%LOGFILE%" 2>&1
+        copy "excel\Finmodel_Template.xlsm" "excel\Finmodel.xlsm" >>"%LOGFILE%" 2>&1
     ) else (
         echo ❌ Шаблон не найден: excel\Finmodel_Template.xlsm
         echo [ERR] Template missing>>"%LOGFILE%"
     )
 ) else (
-    echo ℹ️  Finmodel.xlsm уже существует
+    echo ℹ️  excel\Finmodel.xlsm уже существует
     echo [INFO] Main xlsm exists>>"%LOGFILE%"
 )
 

@@ -16,7 +16,7 @@ def parse_cli():
 CLI_XLSM = parse_cli()                # None, если параметр не передали
 
 BASE_DIR  = Path(__file__).resolve().parent
-DEFAULT_XLSM = BASE_DIR.parent / 'Finmodel.xlsm'   # …\Finmodel\Finmodel.xlsm
+DEFAULT_XLSM = BASE_DIR.parent / 'excel' / 'Finmodel.xlsm'   # …\Finmodel\excel\Finmodel.xlsm
 
 EXCEL_PATH = str(Path(CLI_XLSM) if CLI_XLSM else DEFAULT_XLSM)
 

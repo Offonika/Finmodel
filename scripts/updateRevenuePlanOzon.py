@@ -5,7 +5,7 @@ import xlwings as xw
 import pandas as pd
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-EXCEL_PATH = os.path.join(BASE_DIR, 'Finmodel.xlsm')
+EXCEL_PATH = os.path.join(BASE_DIR, 'excel', 'Finmodel.xlsm')
 
 SHEET_SALES = 'ПланПродажОзон'
 SHEET_OUT   = 'ПланВыручкиОзон'
