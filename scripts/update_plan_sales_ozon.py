@@ -152,7 +152,7 @@ def main():
         return
 
     # normalize articles to match cost sheet
-    sales_df['Артикул_поставщика'] = sales_df['Артикул_поставщика'].apply(normalize_offer_id)
+    sales_df['Артикул_поставщика'] = sales_df['Артикул_поставщика'].astype(str).str.strip()
 
     # ► безопасные числа
     sales_df['Год']        = sales_df['Год'].apply(safe_float).astype(int)
@@ -193,7 +193,7 @@ def main():
         ]
         offer = ''
         if not df_found.empty:
-            offer = normalize_offer_id(df_found['Артикул_поставщика'].iloc[0])
+            offer = str(df_found['Артикул_поставщика'].iloc[0]).strip()
         sku_to_offer[key] = offer.strip()
 
 
