@@ -3,6 +3,7 @@
 import os
 import xlwings as xw
 import pandas as pd
+import re
 from datetime import datetime
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -38,6 +39,14 @@ def normalize_sku(val):
     if s.endswith('.0'):
         s = s[:-2]
     return s
+
+
+def normalize_offer_id(val):
+    """Remove size suffix like '-54' from seller article."""
+    if pd.isna(val):
+        return ""
+    s = str(val).strip()
+    return re.sub(r"-\d+$", "", s)
 
 def col_to_letter(col):
     letter = ''
@@ -142,6 +151,9 @@ def main():
         if app: app.quit()
         return
 
+    # normalize articles to match cost sheet
+    sales_df['Артикул_поставщика'] = sales_df['Артикул_поставщика'].apply(normalize_offer_id)
+
     # ► безопасные числа
     sales_df['Год']        = sales_df['Год'].apply(safe_float).astype(int)
     sales_df['Месяц']      = sales_df['Месяц'].apply(safe_float).astype(int)
@@ -179,7 +191,9 @@ def main():
             (sales_df['Организация'] == org) &
             (sales_df['SKU'].apply(normalize_sku) == normalize_sku(sku))
         ]
-        offer = str(df_found['Артикул_поставщика'].iloc[0]) if not df_found.empty else ''
+        offer = ''
+        if not df_found.empty:
+            offer = normalize_offer_id(df_found['Артикул_поставщика'].iloc[0])
         sku_to_offer[key] = offer.strip()
 
 

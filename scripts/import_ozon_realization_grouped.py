@@ -8,6 +8,7 @@ import requests
 import pandas as pd
 import glob
 import os            # ← импорт был здесь
+import re
 import xlwings as xw
 from datetime import datetime
 
@@ -19,6 +20,14 @@ def get_workbook():
         app = xw.App(visible=False, add_book=False)
         wb = app.books.open(EXCEL_PATH)
         return wb, app, True
+
+
+def normalize_offer_id(val) -> str:
+    """Remove trailing size like '-54' from seller article."""
+    if val is None:
+        return ""
+    s = str(val).strip()
+    return re.sub(r"-\d+$", "", s)
 
 
 
@@ -220,9 +229,10 @@ def main():
                 deliv = r.get('delivery_commission') or {}
                 ret   = r.get('return_commission')   or {}
 
+                offer = normalize_offer_id(it.get('offer_id', ''))
                 key = (
                     org, p['year'], p['month'],
-                    it.get('offer_id', ''), it.get('sku', ''), it.get('barcode', ''), it.get('name', '')
+                    offer, it.get('sku', ''), it.get('barcode', ''), it.get('name', '')
                 )
                 g = groups[key]
 
