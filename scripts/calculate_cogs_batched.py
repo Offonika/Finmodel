@@ -231,7 +231,7 @@ def main():
         first_free = 2
 
         # 6. Основной цикл по товарам чанками
-        skipped = 0
+        missing_price = 0
         for chunk_start in range(0, len(prod_df), BATCH_SIZE):
             chunk_end = min(len(prod_df), chunk_start + BATCH_SIZE)
             batch_out = []
@@ -246,14 +246,14 @@ def main():
 
                 price_row = price_dict.get(vendor_norm)
                 if price_row is None:
-                    log(f"Skip {vendor_orig} ({org}) – нет закупочной цены", "debug")
-                    skipped += 1
-                    continue
+                    log(f"Нет закупочной цены для {vendor_orig} ({org}), ставим 0", "debug")
+                    missing_price += 1
+                    price_row = {}
 
-                # Новый способ: тип логистики из закупочной строки или 'Карго' по умолчанию
-                logistics_mode = price_row.get('Тип_Логистики', 'Карго')
+                # Тип логистики берём из закупочной строки, иначе из настроек организации
+                logistics_mode = price_row.get('Тип_Логистики')
                 if not isinstance(logistics_mode, str) or not logistics_mode.strip():
-                    logistics_mode = 'Карго'
+                    logistics_mode = get_logistics_mode(org, orgs_ws)
 
                 # --- расчёты ---
                 price_val = safe_float(price_row.get('Закуп_Цена'))
@@ -299,8 +299,8 @@ def main():
                 first_free += len(batch_out)
                 log(f"добавлено строк: {len(batch_out)}")
 
-        log(f"Расчёт завершён. Итоговых строк: {first_free-2}, пропущено без цены: {skipped}")
-        #print(f"✓ COGS рассчитан: {first_free-2} строк, пропусков {skipped}")
+        log(f"Расчёт завершён. Итоговых строк: {first_free-2}, строк без цены: {missing_price}")
+        #print(f"✓ COGS рассчитан: {first_free-2} строк, без цены {missing_price}")
 
         # 7. Оформляем умную таблицу
         for tbl in result_ws.tables:
