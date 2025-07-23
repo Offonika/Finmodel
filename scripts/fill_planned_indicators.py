@@ -503,6 +503,24 @@ def fill_planned_indicators():
                     r['usn_forced_min'] = False
                     r['tax'] = round(max(r['ebit'], 0) * r['usn'] / 100)
 
+        # ---- 3A. Консолидация "Доходы" с учётом взносов по группе -----
+        cons_income = defaultdict(list)
+        for r in out:
+            if (r['mode'] == 'Доходы' and
+                    org_cfg.get(r['org'], {}).get('consolidation', False)):
+                base = max(r['revN'], 0)
+                raw_tax = round(base * r['usn'] / 100)
+                r['raw_tax'] = raw_tax
+                cons_income[r['m']].append(r)
+
+        for m, rows in cons_income.items():
+            total_raw = sum(r['raw_tax'] for r in rows)
+            total_esn = sum(r['esn'] for r in rows)
+            deduction_total = min(total_esn, total_raw * 0.5)
+            for r in rows:
+                share = r['raw_tax'] / total_raw if total_raw else 0
+                r['deduction'] = round(deduction_total * share)
+
         ebit_m = acc(out, lambda x: x['m'], lambda x: x['ebit'])
         rows_out, cum_osno = [], {}
         for r in out:
@@ -510,9 +528,12 @@ def fill_planned_indicators():
             rate = '0%'
             if r['mode'] == 'Доходы':
                 base = max(r['revN'], 0)
-                raw_tax = round(base * r['usn'] / 100)
-                max_deduction = raw_tax * 0.5
-                deduction = min(r['esn'], max_deduction)
+                raw_tax = r.get('raw_tax', round(base * r['usn'] / 100))
+                if org_cfg.get(r['org'], {}).get('consolidation', False):
+                    deduction = r.get('deduction', 0)
+                else:
+                    max_deduction = raw_tax * 0.5
+                    deduction = min(r['esn'], max_deduction)
                 tax = round(raw_tax - deduction)
                 rate = f"{r['usn']}%"
 
