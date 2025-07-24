@@ -231,7 +231,7 @@ def main():
             'Организация', 'Артикул_поставщика', 'Предмет', 'Наименование',
             'Закуп_Цена_руб', 'Логистика_руб', 'Пошлина_руб', 'НДС_руб',
             'Себестоимость_руб', 'Себестоимость_без_НДС_руб', 'Входящий_НДС_руб',
-            'СебестоимостьУпр', 'СебестоимостьНалог'
+            'СебестоимостьУпр', 'СебестоимостьНалог', 'ct'
         ]
         result_ws.clear();  result_ws.range(1,1).value = header
         first_free = 2
@@ -297,12 +297,13 @@ def main():
                 is_deductible = TAX_DEDUCTIBLE_BY_LOGISTIC.get(logistics_mode, True)
                 cogs_mgmt  = purchase_rub
                 cogs_tax   = purchase_rub if is_deductible else 0
+                ct         = total_cogs if is_deductible else 0
 
                 batch_out.append([
                     org, vendor_orig, subject, name,
                     round(purchase_rub), round(logistics_rub), round(duty_rub),
                     round(vat_rub),      round(total_cogs),    round(cogs_without_vat),
-                    round(vat_rub), round(cogs_mgmt), round(cogs_tax)
+                    round(vat_rub), round(cogs_mgmt), round(cogs_tax), round(ct)
                 ])
 
             if batch_out:
@@ -328,7 +329,7 @@ def main():
             rub_cols = [
                 'Закуп_Цена_руб', 'Логистика_руб', 'Пошлина_руб', 'НДС_руб',
                 'Себестоимость_руб', 'Себестоимость_без_НДС_руб', 'Входящий_НДС_руб',
-                'СебестоимостьУпр', 'СебестоимостьНалог'
+                'СебестоимостьУпр', 'СебестоимостьНалог', 'ct'
             ]
             headers = [c.Name for c in tbl.ListColumns]
             for col_name in rub_cols:
