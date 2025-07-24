@@ -560,7 +560,9 @@ def fill_planned_indicators():
                     group_key = ('consolidated'
                                  if org_cfg.get(r['org'], {}).get('consolidation', False)
                                  else r['org'])
-                    if r['prevM'] != 'ОСНО':
+                    # Сбрасываем накопление только один раз при переходе группы
+                    if r['prevM'] != 'ОСНО' and group_key not in cum_osno:
+
                         cum_osno[group_key] = 0
                     base = max(r['ebit'], 0)
                     prev = cum_osno.get(group_key, 0)
@@ -568,6 +570,9 @@ def fill_planned_indicators():
                     tax = round(ndfl_prog(cum) - ndfl_prog(prev))
                     cum_osno[group_key] = cum
                     rate = f"{(tax / base * 100):.2f}%" if base else '0%'
+                    log_info(
+                        f"[TAX] {r['org']} | ОСНО | group={group_key} | prev={prev:,.2f} | base={base:,.2f} → tax={tax}"
+                    )
                 else:
                     # Для юр. лиц ставка фиксированная, без накопления
                     base = max(r['ebit'], 0)
