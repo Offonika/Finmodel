@@ -264,6 +264,7 @@ def main():
                     expMP,
                     unitC['rub']   * qty,
                     unitC['rubWo'] * qty,
+                    cost_tax,
                     round(ebitda_mgmt),
                     round(ebitda_tax),
                     round(ebitda_mgmt),  # Чистая прибыль == EBITDA (без налогов)
@@ -281,6 +282,7 @@ def main():
         'Кол-во, шт',  'Выручка, ₽', 'Комиссия WB %', 'Комиссия WB, ₽',
         'Логистика, ₽','Хранение, ₽','Реклама, ₽','Расходы МП, ₽',
         'СебестоимостьПродажРуб', 'СебестоимостьПродажБезНДС',
+        'СебестоимостьПродажНалог, ₽',
         'EBITDA_Упр, ₽', 'EBITDA_Налог, ₽',
         'ЧистаяПрибыль_Упр, ₽', 'ЧистаяПрибыль_Налог, ₽'
     ]
@@ -339,6 +341,9 @@ def main():
         for idx in rub_cols:
             c = idx + 1
             res.range((2, c), (last_row, c)).api.NumberFormat = '#,##0 ₽'
+        if 'СебестоимостьПродажНалог, ₽' in hdr:
+            col_ct = hdr.index('СебестоимостьПродажНалог, ₽') + 1
+            res.range((2, col_ct), (last_row, col_ct)).api.NumberFormat = '#,##0 ₽'
         if pct_col is not None:
             c = pct_col + 1
             res.range((2, c), (last_row, c)).api.NumberFormat = '0%'
@@ -346,9 +351,16 @@ def main():
         total_row = last_row + 1
         res.range((total_row, 1)).value = 'ИТОГО'
         res.range((total_row, 1)).api.Font.Bold = True
-        for c in [5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]:
+        for c in [5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]:
             col = col_letter(c)
-            res.range((total_row, c)).formula = f'=SUBTOTAL(9,{col}2:{col}{total_row-1})'
+            if hdr[c - 1] == 'СебестоимостьПродажНалог, ₽':
+                res.range((total_row, c)).formula = (
+                    "=SUBTOTAL(109,[СебестоимостьПродажНалог, ₽])"
+                )
+            else:
+                res.range((total_row, c)).formula = (
+                    f'=SUBTOTAL(9,{col}2:{col}{total_row-1})'
+                )
             res.range((total_row, c)).api.Font.Bold = True
             res.range((total_row, c)).api.NumberFormat = '#,##0 ₽'
 
