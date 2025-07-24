@@ -184,6 +184,7 @@ def main():
         cogs = {}
         mgmt_col = sIdx.get('СебестоимостьУпр')
         tax_col  = sIdx.get('СебестоимостьНалог')
+        tax_wo_col = sIdx.get('СебестоимостьНалог_без_НДС')
 
         for r in sh['cost'].range(2, 1).expand('table').value:
             key = f"{r[sIdx['Организация']]}|{r[sIdx['Артикул_поставщика']]}"
@@ -191,7 +192,8 @@ def main():
                 'rub': round(to_num(r[sIdx['Себестоимость_руб']])),
                 'rubWo': round(to_num(r[sIdx['Себестоимость_без_НДС_руб']])),
                 'mgmt': round(to_num(r[mgmt_col])) if mgmt_col is not None else round(to_num(r[sIdx['Себестоимость_руб']])),
-                'tax':  round(to_num(r[tax_col])) if tax_col is not None else round(to_num(r[sIdx['Себестоимость_без_НДС_руб']]))
+                'tax':  round(to_num(r[tax_col])) if tax_col is not None else round(to_num(r[sIdx['Себестоимость_без_НДС_руб']])),
+                'tax_wo': round(to_num(r[tax_wo_col])) if tax_wo_col is not None else round(to_num(r[sIdx['Себестоимость_без_НДС_руб']]))
             }
 
         # 6. Параметры из "Настройки"
@@ -268,6 +270,8 @@ def main():
 
                 cost_mgmt = unitC.get('mgmt', unitC['rub']) * qty
                 cost_tax  = unitC.get('tax', unitC['rubWo']) * qty
+                cost_tax_wo = unitC.get('tax_wo', unitC.get('tax', unitC['rubWo'])) * qty
+                gp_tax = rev - cost_tax
 
                 ebitda_mgmt = rev - expMP - cost_mgmt
                 ebitda_tax  = rev - expMP - cost_tax
@@ -282,6 +286,8 @@ def main():
                     unitC['rub']   * qty,
                     unitC['rubWo'] * qty,
                     cost_tax,
+                    cost_tax_wo,
+                    gp_tax,
                     round(ebitda_mgmt),
                     round(ebitda_tax),
                     round(ebitda_mgmt),  # Чистая прибыль == EBITDA (без налогов)
@@ -295,14 +301,16 @@ def main():
 
         # 9. Корректное формирование и запись умной таблицы
         hdr = [
-        'Организация', 'Артикул_WB', 'Артикул_поставщика', 'Предмет', 'Месяц',
-        'Кол-во, шт',  'Выручка, ₽', 'Комиссия WB %', 'Комиссия WB, ₽',
-        'Логистика, ₽','Хранение, ₽','Реклама, ₽','Расходы МП, ₽',
-        'СебестоимостьПродажРуб', 'СебестоимостьПродажБезНДС',
-        'СебестоимостьПродажНалог, ₽',
-        'EBITDA_Упр, ₽', 'EBITDA_Налог, ₽',
-        'ЧистаяПрибыль_Упр, ₽', 'ЧистаяПрибыль_Налог, ₽'
-    ]
+            'Организация', 'Артикул_WB', 'Артикул_поставщика', 'Предмет', 'Месяц',
+            'Кол-во, шт',  'Выручка, ₽', 'Комиссия WB %', 'Комиссия WB, ₽',
+            'Логистика, ₽', 'Хранение, ₽', 'Реклама, ₽', 'Расходы МП, ₽',
+            'СебестоимостьПродажРуб', 'СебестоимостьПродажБезНДС',
+            'СебестоимостьПродажНалог, ₽',
+            'СебестоимостьПродажНалог_без_НДС, ₽',
+            'ВаловаяПрибыль_Налог, ₽',
+            'EBITDA_Упр, ₽', 'EBITDA_Налог, ₽',
+            'ЧистаяПрибыль_Упр, ₽', 'ЧистаяПрибыль_Налог, ₽'
+        ]
 
 
         def clean_number(x):
@@ -314,6 +322,7 @@ def main():
                 return 0
 
         rub_cols = [i for i, h in enumerate(hdr) if '₽' in h or 'Себестоимость' in h]
+        qty_col = next((i for i, h in enumerate(hdr) if 'Кол-во' in h), None)
         pct_col = next((i for i, h in enumerate(hdr) if 'Комиссия WB %' in h), None)
 
         cleaned_out = []
@@ -358,6 +367,9 @@ def main():
         for idx in rub_cols:
             c = idx + 1
             res.range((2, c), (last_row, c)).api.NumberFormat = '#,##0 ₽'
+        if qty_col is not None:
+            c = qty_col + 1
+            res.range((2, c), (last_row, c)).api.NumberFormat = '#,##0'
         if 'СебестоимостьПродажНалог, ₽' in hdr:
             col_ct = hdr.index('СебестоимостьПродажНалог, ₽') + 1
             res.range((2, col_ct), (last_row, col_ct)).api.NumberFormat = '#,##0 ₽'
@@ -368,18 +380,22 @@ def main():
         total_row = last_row + 1
         res.range((total_row, 1)).value = 'ИТОГО'
         res.range((total_row, 1)).api.Font.Bold = True
-        for c in [5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20]:
+        total_cols = set(rub_cols)
+        if qty_col is not None:
+            total_cols.add(qty_col)
+        for idx in sorted(total_cols):
+            c = idx + 1
             col = col_letter(c)
-            if hdr[c - 1] == 'СебестоимостьПродажНалог, ₽':
-                res.range((total_row, c)).formula = (
-                    "=SUBTOTAL(109,[СебестоимостьПродажНалог, ₽])"
-                )
+            if hdr[idx] == 'СебестоимостьПродажНалог, ₽':
+                formula = "=SUBTOTAL(109,[СебестоимостьПродажНалог, ₽])"
             else:
-                res.range((total_row, c)).formula = (
-                    f'=SUBTOTAL(9,{col}2:{col}{total_row-1})'
-                )
+                formula = f'=SUBTOTAL(9,{col}2:{col}{total_row-1})'
+            res.range((total_row, c)).formula = formula
             res.range((total_row, c)).api.Font.Bold = True
-            res.range((total_row, c)).api.NumberFormat = '#,##0 ₽'
+            if idx in rub_cols:
+                res.range((total_row, c)).api.NumberFormat = '#,##0 ₽'
+            else:
+                res.range((total_row, c)).api.NumberFormat = '#,##0'
 
         res.autofit()
         res.api.Rows.AutoFit()
@@ -410,4 +426,3 @@ def main():
 if __name__ == '__main__':
     main()
 
-    
