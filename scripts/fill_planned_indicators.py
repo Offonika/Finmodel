@@ -723,12 +723,12 @@ def fill_planned_indicators():
         total_row = last_row + 1                 # ← исправили
         sh.range(total_row, 1).value = 'Итого'
 
-        for idx, col in enumerate(headers, start=1):
-            if col in ruble_cols:
-                letter = col_name(idx)
-                sh.range(total_row, idx).formula = \
-                    f"=SUBTOTAL(109,{letter}$2:{letter}${last_row})"
-                sh.range(total_row, idx).number_format = fmt
+        for col in ruble_cols:
+            idx = headers.index(col) + 1
+            letter = col_name(idx)
+            sh.range(total_row, idx).formula = \
+                f"=SUBTOTAL(109,{letter}$2:{letter}${last_row})"
+            sh.range(total_row, idx).number_format = fmt
 
 
         # ------ ярлык и позиция листа ----------------------------------
