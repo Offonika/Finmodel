@@ -41,10 +41,20 @@ def run_pipeline(prod_df, price_df, duty_df, orgs_df, settings):
                 except Exception:
                     _duty_rate = 0
 
+        kg_rate = settings['cargoRatePerKg'] if logistics_mode == 'Карго' else settings['whiteRatePerKg']
+        logistics_rub = _weight * kg_rate * settings['usdRate']
+        duty_rub = purchase_rub * _duty_rate
+        vat_rub = (
+            (purchase_rub + duty_rub + logistics_rub) * settings['ndsRateWhite']
+            if logistics_mode == 'Белая'
+            else 0
+        )
 
-        is_deductible = TAX_DEDUCTIBLE_BY_LOGISTIC.get(logistics_mode, True)
-        cogs_mgmt = purchase_rub
-        cogs_tax = purchase_rub if is_deductible else 0
+        total_cogs_full = purchase_rub + logistics_rub + duty_rub + vat_rub
+        is_deductible = logistics_mode != 'Карго'
+        cogs_mgmt = total_cogs_full
+        cogs_tax = total_cogs_full if is_deductible else 0
+        cogs_tax_wo_vat = cogs_tax - vat_rub if vat_rub > 0 else cogs_tax
 
         results.append({
             'Организация': org,
@@ -53,6 +63,7 @@ def run_pipeline(prod_df, price_df, duty_df, orgs_df, settings):
             'Наименование': name,
             'СебестоимостьУпр': round(cogs_mgmt),
             'СебестоимостьНалог': round(cogs_tax),
+            'СебестоимостьНалогБезНДС': round(cogs_tax_wo_vat),
         })
     return pd.DataFrame(results)
 
@@ -85,6 +96,7 @@ def test_cargo_tax_zero():
 
     result = run_pipeline(prod_df, price_df, duty_df, orgs_df, settings)
     assert (result['СебестоимостьНалог'] == 0).all()
+    assert (result['СебестоимостьНалогБезНДС'] == 0).all()
 
 
 def test_management_vs_tax_cogs():
@@ -116,5 +128,6 @@ def test_management_vs_tax_cogs():
     result = run_pipeline(prod_df, price_df, duty_df, orgs_df, settings)
     assert 'СебестоимостьУпр' in result.columns
     assert 'СебестоимостьНалог' in result.columns
+    assert 'СебестоимостьНалогБезНДС' in result.columns
     assert result['СебестоимостьУпр'].sum() > result['СебестоимостьНалог'].sum()
 
