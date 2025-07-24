@@ -22,4 +22,5 @@ def test_taxable_cogs_column():
         'СебестоимостьНалог_руб': [300],
     })
     df = compute_ozon_economics_df(plan_df, cost_df, {})
+    assert 'СебестоимостьНалог_руб' in df.columns
     assert df.loc[0, 'СебестоимостьНалог_руб'] == 300
