@@ -126,6 +126,15 @@ def acc(iterable, kfn, vfn):
         d[kfn(x)] = d.get(kfn(x), 0) + vfn(x)
     return d
 
+def find_key(idx, target):
+    """Return column name from idx matching target ignoring spaces and underscores."""
+    norm = lambda s: str(s).lower().replace(' ', '').replace('_', '')
+    target_norm = norm(target)
+    for k in idx:
+        if norm(k) == target_norm:
+            return k
+    return None
+
 def ndfl_prog(base):
     left, tax, prev = base, 0, 0
     for lim, r in [(2.4e6, .13), (5e6, .15),
@@ -156,14 +165,18 @@ def log_nds(month, org, prev, curr, mode, rate, lvl):
 
 # ---------- 4. Главная функция --------------------------------------------
 def fill_planned_indicators():
-    headers = ['Организация', 'Месяц', 'Выручка, ₽', 'Выручка накоп., ₽',
-           'Выручка сводно, ₽', 'Выручка без НДС, ₽', 'НДС, ₽',
-           'Ставка НДС, %', 'Себестоимость руб', 'Себестоимость Налог, ₽', 'Себестоимость без НДС',
-           'Расх. MP с НДС, ₽',          # ← новая колонка (брутто)
-           'Расх. MP без НДС, ₽',        # ← бывшая «Расх. MP, ₽»
-           'ФОТ, ₽', 'ЕСН, ₽', 'Прочие, ₽', 'EBITDA, ₽',
-           'EBITDA накоп., ₽', 'EBITDA сводно, ₽', 'Режим',
-           'Ставка УСН, %', 'Налог, ₽', 'Чистая прибыль, ₽']
+    headers = [
+        'Организация', 'Месяц', 'Выручка, ₽', 'Выручка накоп., ₽',
+        'Выручка сводно, ₽', 'Выручка без НДС, ₽', 'НДС, ₽',
+        'Ставка НДС, %', 'Себестоимость руб', 'Себестоимость Налог, ₽',
+        'СебестоимостьНалог без НДС, ₽', 'Себестоимость без НДС',
+        'Расх. MP с НДС, ₽',          # ← новая колонка (брутто)
+        'Расх. MP без НДС, ₽',        # ← бывшая «Расх. MP, ₽»
+        'ФОТ, ₽', 'ЕСН, ₽', 'Прочие, ₽', 'EBITDA, ₽',
+        'EBITDA накоп., ₽', 'EBITDA сводно, ₽', 'Режим',
+        'Ставка УСН, %', 'Налог, ₽', 'Чистая прибыль, ₽',
+        'ЧистаяПрибыль Налог, ₽'
+    ]
 
     ruble_cols = [h for h in headers if '₽' in h or h.startswith('Себестоимость')]
 
@@ -217,8 +230,10 @@ def fill_planned_indicators():
                 'организация', 'месяц', 'выручка_руб', 'итогорасходымп_руб',
                 'себестоимостьпродаж_руб', 'себестоимостьбезндс_руб'
             ]
-            # Колонка "СебестоимостьНалог" может отсутствовать в старых файлах
+            # Колонки себестоимости по налоговому учёту могут отсутствовать
             has_tax_cogs = 'себестоимостьналог' in oz_idx
+            tax_wo_col = find_key(oz_idx, 'себестоимостьналогбезндс')
+            has_tax_cogs_wo = tax_wo_col is not None
             for col in need_oz:
                 if col not in oz_idx:
                     raise ValueError(f'Колонка «{col}» отсутствует в {SHEET_OZON}')
@@ -241,12 +256,15 @@ def fill_planned_indicators():
                 mp=parse_money(r[oz_idx['итогорасходымп_руб']]),
                 cr=parse_money(r[oz_idx['себестоимостьпродаж_руб']]),
                 cn=parse_money(r[oz_idx['себестоимостьбезндс_руб']]),
-                ct=parse_money(r[oz_idx['себестоимостьналог']]) if has_tax_cogs else 0
+                ct=parse_money(r[oz_idx['себестоимостьналог']]) if has_tax_cogs else 0,
+                ct_wo=parse_money(r[tax_wo_col]) if has_tax_cogs_wo else 0
             ))
 
 
         # === 4.4 Добавляем строки WB ====================================
         has_tax_cogs_wb = 'себестоимостьналог' in wb_idx
+        tax_wo_col_wb = find_key(wb_idx, 'себестоимостьналогбезндс')
+        has_tax_cogs_wo_wb = tax_wo_col_wb is not None
         for i, r in enumerate(wb_rows, 2):
             org = r[wb_idx['организация']]
             raw_month = r[wb_idx['месяц']]
@@ -263,7 +281,8 @@ def fill_planned_indicators():
                 mp=parse_money(r[wb_idx['расходы мп, ₽']]),
                 cr=parse_money(r[wb_idx['себестоимостьпродажруб']]),
                 cn=parse_money(r[wb_idx['себестоимостьпродажбезндс']]),
-                ct=parse_money(r[wb_idx['себестоимостьналог']]) if has_tax_cogs_wb else 0
+                ct=parse_money(r[wb_idx['себестоимостьналог']]) if has_tax_cogs_wb else 0,
+                ct_wo=parse_money(r[tax_wo_col_wb]) if has_tax_cogs_wo_wb else 0
             ))
 
         if not rows:
@@ -361,9 +380,11 @@ def fill_planned_indicators():
         grouped = {}
         for r in rows:
             k = (r['org'], r['month'])
-            g = grouped.setdefault(k, dict(org=r['org'], month=r['month'],
-                                            rev=0, mp=0, cr=0, cn=0, ct=0))
-            for f in ('rev', 'mp', 'cr', 'cn', 'ct'):
+            g = grouped.setdefault(
+                k,
+                dict(org=r['org'], month=r['month'], rev=0, mp=0, cr=0, cn=0, ct=0, ct_wo=0)
+            )
+            for f in ('rev', 'mp', 'cr', 'cn', 'ct', 'ct_wo'):
                 g[f] += r.get(f, 0)
 
         records = sorted(grouped.values(), key=lambda x: x['month'])
@@ -460,8 +481,10 @@ def fill_planned_indicators():
 
             cost_base = g['cn'] if round(nds) == 20 else g['cr']
             cost_tax  = g.get('ct', g['cn'] if round(nds) == 20 else g['cr'])
+            cost_tax_wo = g.get('ct_wo', g['cn'])
             ebit = revN - (cost_base + mpNet + fot + esn + oth_cost)
-            usn_base = g['rev'] - (cost_tax + mpGross + fot + esn + oth_cost)
+            ebit_tax = g['rev'] - (cost_tax + mpGross + fot + esn + oth_cost)
+            usn_base = ebit_tax
 
             # --- аккумулируем ---
             p_rev[g['org']]  = p_rev.get(g['org'], 0) + g['rev']
@@ -471,9 +494,9 @@ def fill_planned_indicators():
             out.append(dict(
                 org=g['org'], m=g['month'], rev=g['rev'], cumG=gross,
                 revN=revN, ndsSum=nds_sum, nds=nds,
-                cr=g['cr'], cn=g['cn'], ct=cost_tax,
+                cr=g['cr'], cn=g['cn'], ct=cost_tax, ct_wo=cost_tax_wo,
                 mpGross=mpGross, mpNet=mpNet,
-                fot=fot, esn=esn, oth=oth_cost, ebit=ebit,
+                fot=fot, esn=esn, oth=oth_cost, ebit=ebit, ebit_tax=ebit_tax,
                 tax_base=usn_base,
                 cumN=p_net[g['org']], cumE=p_ebit[g['org']],
                 mode=mode_eff, type=cfg['type'], prevM=last_mode.get(g['org']),
@@ -628,32 +651,36 @@ def fill_planned_indicators():
                 round(r['cr']),
                 # 10  Себестоимость Налог, ₽
                 round(r['ct']),
-                # 11  Себестоимость без НДС
+                # 11  СебестоимостьНалог без НДС, ₽
+                round(r['ct_wo']),
+                # 12  Себестоимость без НДС
                 round(r['cn']),
-                # 12  Расх. MP с НДС, ₽   (брутто)
+                # 13  Расх. MP с НДС, ₽   (брутто)
                 round(r['mpGross']),
-                # 13  Расх. MP без НДС, ₽ (нетто)
+                # 14  Расх. MP без НДС, ₽ (нетто)
                 round(r['mpNet']),
-                # 14  ФОТ, ₽
+                # 15  ФОТ, ₽
                 round(r['fot']),
-                # 15  ЕСН, ₽
+                # 16  ЕСН, ₽
                 round(r['esn']),
-                # 16  Прочие, ₽
+                # 17  Прочие, ₽
                 round(r['oth']),
-                # 17  EBITDA, ₽
+                # 18  EBITDA, ₽
                 round(r['ebit']),
-                # 18  EBITDA накоп., ₽
+                # 19  EBITDA накоп., ₽
                 round(r['cumE']),
-                # 19  EBITDA сводно, ₽
+                # 20  EBITDA сводно, ₽
                 round(ebit_m[r['m']]),
-                # 20  Режим
+                # 21  Режим
                 r['mode'],
-                # 21  Ставка УСН, %
+                # 22  Ставка УСН, %
                 rate,
-                # 22  Налог, ₽
+                # 23  Налог, ₽
                 tax,
-                # 23  Чистая прибыль, ₽
-                round(r['ebit'] - tax)
+                # 24  Чистая прибыль, ₽
+                round(r['ebit'] - tax),
+                # 25  ЧистаяПрибыль Налог, ₽
+                round(r['ebit_tax'] - tax)
             ])
 
 
