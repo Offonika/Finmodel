@@ -231,7 +231,7 @@ def main():
             'Организация', 'Артикул_поставщика', 'Предмет', 'Наименование',
             'Закуп_Цена_руб', 'Логистика_руб', 'Пошлина_руб', 'НДС_руб',
             'Себестоимость_руб', 'Себестоимость_без_НДС_руб', 'Входящий_НДС_руб',
-            'СебестоимостьУпр', 'СебестоимостьНалог', 'ct'
+            'СебестоимостьУпр', 'СебестоимостьНалог'
         ]
         result_ws.clear();  result_ws.range(1,1).value = header
         first_free = 2
@@ -294,16 +294,16 @@ def main():
                 cogs_without_vat = total_cogs - vat_rub
 
                 # --- себестоимость по управленческому и налоговому учёту ---
-                is_deductible = TAX_DEDUCTIBLE_BY_LOGISTIC.get(logistics_mode, True)
-                cogs_mgmt  = purchase_rub
-                cogs_tax   = purchase_rub if is_deductible else 0
-                ct         = total_cogs if is_deductible else 0
+                total_cogs_full = purchase_rub + logistics_rub + duty_rub + vat_rub
+                is_deductible = logistics_mode != 'Карго'
+                cogs_mgmt = purchase_rub
+                cogs_tax = total_cogs_full if is_deductible else 0
 
                 batch_out.append([
                     org, vendor_orig, subject, name,
                     round(purchase_rub), round(logistics_rub), round(duty_rub),
                     round(vat_rub),      round(total_cogs),    round(cogs_without_vat),
-                    round(vat_rub), round(cogs_mgmt), round(cogs_tax), round(ct)
+                    round(vat_rub), round(cogs_mgmt), round(cogs_tax)
                 ])
 
             if batch_out:
@@ -329,7 +329,7 @@ def main():
             rub_cols = [
                 'Закуп_Цена_руб', 'Логистика_руб', 'Пошлина_руб', 'НДС_руб',
                 'Себестоимость_руб', 'Себестоимость_без_НДС_руб', 'Входящий_НДС_руб',
-                'СебестоимостьУпр', 'СебестоимостьНалог', 'ct'
+                'СебестоимостьУпр', 'СебестоимостьНалог'
             ]
             headers = [c.Name for c in tbl.ListColumns]
             for col_name in rub_cols:
