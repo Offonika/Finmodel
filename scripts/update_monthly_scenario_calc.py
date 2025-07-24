@@ -30,16 +30,6 @@ def wb_code_key(val):
     except Exception:
         return str(val).strip()
 
-def get_workbook():
-    try:
-        wb = xw.Book.caller()
-        app = None
-        from_caller = True
-    except Exception:
-        app = xw.App(visible=False)
-        wb = app.books.open(EXCEL_PATH)
-        from_caller = False
-    return wb, app, from_caller
 
 def idx_from_header(header_row):
     """Строит словарь индексов колонок по заголовкам"""
