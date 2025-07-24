@@ -165,11 +165,16 @@ def main():
         # 5. Себестоимость
         print('📦 Чтение себестоимости...')
         cogs = {}
+        mgmt_col = sIdx.get('СебестоимостьУпр')
+        tax_col  = sIdx.get('СебестоимостьНалог')
+
         for r in sh['cost'].range(2, 1).expand('table').value:
             key = f"{r[sIdx['Организация']]}|{r[sIdx['Артикул_поставщика']]}"
             cogs[key] = {
                 'rub': round(to_num(r[sIdx['Себестоимость_руб']])),
-                'rubWo': round(to_num(r[sIdx['Себестоимость_без_НДС_руб']]))
+                'rubWo': round(to_num(r[sIdx['Себестоимость_без_НДС_руб']])),
+                'mgmt': round(to_num(r[mgmt_col])) if mgmt_col is not None else round(to_num(r[sIdx['Себестоимость_руб']])),
+                'tax':  round(to_num(r[tax_col])) if tax_col is not None else round(to_num(r[sIdx['Себестоимость_без_НДС_руб']]))
             }
 
         # 6. Параметры из "Настройки"
@@ -244,6 +249,12 @@ def main():
                 advRub   = round(rev * DRR)
                 expMP    = commRub + logiRub + STORE * qty + advRub
 
+                cost_mgmt = unitC.get('mgmt', unitC['rub']) * qty
+                cost_tax  = unitC.get('tax', unitC['rubWo']) * qty
+
+                ebitda_mgmt = rev - expMP - cost_mgmt
+                ebitda_tax  = rev - expMP - cost_tax
+
                 # ВЫВОДИМ В РЕЗУЛЬТАТ Артикул_WB как 2-ю колонку!
                 out.append([
                     org, wb_code, meta['art_postav'], meta['subj'], str(idx + 1).zfill(2),
@@ -252,7 +263,11 @@ def main():
                     STORE * qty, advRub,
                     expMP,
                     unitC['rub']   * qty,
-                    unitC['rubWo'] * qty
+                    unitC['rubWo'] * qty,
+                    round(ebitda_mgmt),
+                    round(ebitda_tax),
+                    round(ebitda_mgmt),  # Чистая прибыль == EBITDA (без налогов)
+                    round(ebitda_tax)
                 ])
 
 
@@ -265,7 +280,9 @@ def main():
         'Организация', 'Артикул_WB', 'Артикул_поставщика', 'Предмет', 'Месяц',
         'Кол-во, шт',  'Выручка, ₽', 'Комиссия WB %', 'Комиссия WB, ₽',
         'Логистика, ₽','Хранение, ₽','Реклама, ₽','Расходы МП, ₽',
-        'СебестоимостьПродажРуб', 'СебестоимостьПродажБезНДС'
+        'СебестоимостьПродажРуб', 'СебестоимостьПродажБезНДС',
+        'EBITDA_Упр, ₽', 'EBITDA_Налог, ₽',
+        'ЧистаяПрибыль_Упр, ₽', 'ЧистаяПрибыль_Налог, ₽'
     ]
 
 
@@ -329,7 +346,7 @@ def main():
         total_row = last_row + 1
         res.range((total_row, 1)).value = 'ИТОГО'
         res.range((total_row, 1)).api.Font.Bold = True
-        for c in [5, 6, 8, 9, 10, 11, 12, 13, 14]:
+        for c in [5, 6, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]:
             col = col_letter(c)
             res.range((total_row, c)).formula = f'=SUBTOTAL(9,{col}2:{col}{total_row-1})'
             res.range((total_row, c)).api.Font.Bold = True
