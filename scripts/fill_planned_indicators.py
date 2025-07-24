@@ -572,12 +572,22 @@ def fill_planned_indicators():
                     if r['prevM'] != 'ОСНО' and group_key not in cum_osno:
 
                         cum_osno[group_key] = 0
-                    base = max(r['ebit'], 0)
+
+                    # --- ключ для накопления прибыли/убытка ---
+                    # --- накопление полного EБIT (включая убытки) ---
                     prev = cum_osno.get(group_key, 0)
+                    base = r['ebit']
                     cum = prev + base
-                    tax = round(ndfl_prog(cum) - ndfl_prog(prev))
+
+                    taxable_prev = max(prev, 0)
+                    taxable_cum = max(cum, 0)
+                    tax = max(0, round(ndfl_prog(taxable_cum) -
+                                       ndfl_prog(taxable_prev)))
+
                     cum_osno[group_key] = cum
-                    rate = f"{(tax / base * 100):.2f}%" if base else '0%'
+
+                    rate = f"{(tax / max(base, 1) * 100):.2f}%" if base > 0 else '0%'
+
                     log_info(
                         f"[TAX] {r['org']} | ОСНО | group={group_key} | prev={prev:,.2f} | base={base:,.2f} → tax={tax}"
                     )
