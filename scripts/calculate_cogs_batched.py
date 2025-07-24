@@ -25,11 +25,6 @@ def hex_to_excel_tab_color(hex_str):
     return rgb_to_excel_tab_color(r, g, b)
 
 
-def _taxable_cost(price_rub: float, vat_rub: float, duty_rub: float, *, logistics: str) -> float:
-    """Return taxable COGS for a single item."""
-    if not TAX_DEDUCTIBLE_BY_LOGISTIC.get(logistics, True):
-        return 0.0
-    return price_rub + vat_rub + duty_rub
 
 def norm(key: str) -> str:
     """
