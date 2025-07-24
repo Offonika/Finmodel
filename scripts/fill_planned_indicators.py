@@ -211,6 +211,8 @@ def fill_planned_indicators():
                 'организация', 'месяц', 'выручка_руб', 'итогорасходымп_руб',
                 'себестоимостьпродаж_руб', 'себестоимостьбезндс_руб'
             ]
+            # Колонка "СебестоимостьНалог" может отсутствовать в старых файлах
+            has_tax_cogs = 'себестоимостьналог' in oz_idx
             for col in need_oz:
                 if col not in oz_idx:
                     raise ValueError(f'Колонка «{col}» отсутствует в {SHEET_OZON}')
@@ -232,11 +234,13 @@ def fill_planned_indicators():
                 rev=parse_money(r[oz_idx['выручка_руб']]),
                 mp=parse_money(r[oz_idx['итогорасходымп_руб']]),
                 cr=parse_money(r[oz_idx['себестоимостьпродаж_руб']]),
-                cn=parse_money(r[oz_idx['себестоимостьбезндс_руб']])
+                cn=parse_money(r[oz_idx['себестоимостьбезндс_руб']]),
+                ct=parse_money(r[oz_idx['себестоимостьналог']]) if has_tax_cogs else 0
             ))
 
 
         # === 4.4 Добавляем строки WB ====================================
+        has_tax_cogs_wb = 'себестоимостьналог' in wb_idx
         for i, r in enumerate(wb_rows, 2):
             org = r[wb_idx['организация']]
             raw_month = r[wb_idx['месяц']]
@@ -252,7 +256,8 @@ def fill_planned_indicators():
                 rev=parse_money(r[wb_idx['выручка, ₽']]),
                 mp=parse_money(r[wb_idx['расходы мп, ₽']]),
                 cr=parse_money(r[wb_idx['себестоимостьпродажруб']]),
-                cn=parse_money(r[wb_idx['себестоимостьпродажбезндс']])
+                cn=parse_money(r[wb_idx['себестоимостьпродажбезндс']]),
+                ct=parse_money(r[wb_idx['себестоимостьналог']]) if has_tax_cogs_wb else 0
             ))
 
         if not rows:
@@ -350,9 +355,9 @@ def fill_planned_indicators():
         for r in rows:
             k = (r['org'], r['month'])
             g = grouped.setdefault(k, dict(org=r['org'], month=r['month'],
-                                            rev=0, mp=0, cr=0, cn=0))
-            for f in ('rev', 'mp', 'cr', 'cn'):
-                g[f] += r[f]
+                                            rev=0, mp=0, cr=0, cn=0, ct=0))
+            for f in ('rev', 'mp', 'cr', 'cn', 'ct'):
+                g[f] += r.get(f, 0)
 
         records = sorted(grouped.values(), key=lambda x: x['month'])
 
@@ -447,7 +452,9 @@ def fill_planned_indicators():
             oth_cost = other.get(g['org'], 0)
 
             cost_base = g['cn'] if round(nds) == 20 else g['cr']
+            cost_tax  = g.get('ct', g['cn'] if round(nds) == 20 else g['cr'])
             ebit = revN - (cost_base + mpNet + fot + esn + oth_cost)
+            usn_base = g['rev'] - (cost_tax + mpGross + fot + esn + oth_cost)
 
             # --- аккумулируем ---
             p_rev[g['org']]  = p_rev.get(g['org'], 0) + g['rev']
@@ -457,9 +464,10 @@ def fill_planned_indicators():
             out.append(dict(
                 org=g['org'], m=g['month'], rev=g['rev'], cumG=gross,
                 revN=revN, ndsSum=nds_sum, nds=nds,
-                cr=g['cr'], cn=g['cn'],
+                cr=g['cr'], cn=g['cn'], ct=cost_tax,
                 mpGross=mpGross, mpNet=mpNet,
                 fot=fot, esn=esn, oth=oth_cost, ebit=ebit,
+                tax_base=usn_base,
                 cumN=p_net[g['org']], cumE=p_ebit[g['org']],
                 mode=mode_eff, type=cfg['type'], prevM=last_mode.get(g['org']),
                 usn=cfg['usn_rate'])
@@ -481,7 +489,7 @@ def fill_planned_indicators():
         if cons_rows:
             # Годовая проверка
             total_income  = sum(r['revN'] for r in cons_rows)
-            group_profit  = sum(r['ebit'] for r in cons_rows)
+            group_profit  = sum(r['tax_base'] for r in cons_rows)
             real_tax_sum  = round(max(group_profit, 0) * cons_rows[0]['usn'] / 100)
             min_tax_sum   = round(total_income * 0.01)
             if real_tax_sum < min_tax_sum:
@@ -491,7 +499,7 @@ def fill_planned_indicators():
             else:
                 for r in cons_rows:
                     r['usn_forced_min'] = False
-                    r['tax'] = round(max(r['ebit'], 0) * r['usn'] / 100)
+                    r['tax'] = round(max(r['tax_base'], 0) * r['usn'] / 100)
 
         # 3. Для остальных организаций – по отдельности (за год 1–12)
         org_groups = defaultdict(list)
@@ -501,7 +509,7 @@ def fill_planned_indicators():
 
         for org, rows in org_groups.items():
             total_income = sum(r['revN'] for r in rows)
-            group_profit = sum(r['ebit'] for r in rows)
+            group_profit = sum(r['tax_base'] for r in rows)
             real_tax_sum = round(max(group_profit, 0) * rows[0]['usn'] / 100)
             min_tax_sum  = round(total_income * 0.01)
             if real_tax_sum < min_tax_sum:
@@ -511,7 +519,7 @@ def fill_planned_indicators():
             else:
                 for r in rows:
                     r['usn_forced_min'] = False
-                    r['tax'] = round(max(r['ebit'], 0) * r['usn'] / 100)
+                    r['tax'] = round(max(r['tax_base'], 0) * r['usn'] / 100)
 
         # ---- 3A. Консолидация "Доходы" с учётом взносов по группе -----
         cons_income = defaultdict(list)
@@ -557,7 +565,7 @@ def fill_planned_indicators():
                     tax = round(r['revN'] * 0.01)
                     rate = '1%'
                 else:
-                    base = max(r['ebit'], 0)
+                    base = max(r.get('tax_base', 0), 0)
                     tax = round(base * r['usn'] / 100)
                     rate = f"{(tax / base * 100):.2f}%" if base else '0%'
                 log_info(f"[TAX] {r['org']} | Доходы-Расходы | tax={tax} | rate={rate}")
