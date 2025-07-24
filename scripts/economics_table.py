@@ -178,13 +178,16 @@ def compute_ozon_economics_df(
     def get(key):
         return settings.get(key, Decimal("0"))
 
-    tax_col_new = "Себестоимость_Налог, руб (новый)"
-    tax_col_old = "СебестоимостьНалог"
+    tax_col_new = "СебестоимостьНалог_руб"
+    tax_col_old = "Себестоимость_Налог, руб (новый)"
+    tax_col_legacy = "СебестоимостьНалог"
 
     for col in ["СебестоимостьУпр", tax_col_new]:
         if col not in cost_df.columns:
             if col == tax_col_new and tax_col_old in cost_df.columns:
                 cost_df[col] = cost_df[tax_col_old]
+            elif col == tax_col_new and tax_col_legacy in cost_df.columns:
+                cost_df[col] = cost_df[tax_col_legacy]
             else:
                 cost_df[col] = 0
 
@@ -253,7 +256,14 @@ def compute_ozon_economics_df(
                 cost_unit = Decimal(str(first["Себестоимость_руб"]))
                 cost_unit_nds = Decimal(str(first["Себестоимость_без_НДС_руб"]))
                 cost_mgmt = Decimal(str(first.get("СебестоимостьУпр", 0)))
-                cost_tax = Decimal(str(first.get(tax_col_new, first.get(tax_col_old, 0))))
+                cost_tax = Decimal(
+                    str(
+                        first.get(
+                            tax_col_new,
+                            first.get(tax_col_old, first.get(tax_col_legacy, 0))
+                        )
+                    )
+                )
 
             cogs = cost_unit * qty_dec
             cogs_no_vat = cost_unit_nds * qty_dec
