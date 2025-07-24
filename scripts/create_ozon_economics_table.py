@@ -167,7 +167,8 @@ def main():
                 cogsRub   = to_num(costRow[idxCost.get("Себестоимость_руб", -1)]) * qty if costRow else 0
                 cogsNoVat = to_num(costRow[idxCost.get("Себестоимость_без_НДС_руб", -1)]) * qty if costRow else 0
                 cogsMgmt  = to_num(costRow[idxCost.get("СебестоимостьУпр", -1)]) * qty if costRow else 0
-                cogsTax   = to_num(costRow[idxCost.get("СебестоимостьНалог", -1)]) * qty if costRow else 0
+                tax_idx = idxCost.get("Себестоимость_Налог, руб (новый)", idxCost.get("СебестоимостьНалог", -1))
+                cogsTax   = to_num(costRow[tax_idx]) * qty if costRow else 0
 
                 gpMgmt = revenue - cogsMgmt
                 gpTax  = revenue - cogsTax
