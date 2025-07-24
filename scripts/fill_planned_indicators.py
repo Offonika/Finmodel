@@ -522,6 +522,8 @@ def fill_planned_indicators():
                 r['deduction'] = round(deduction_total * share)
 
         ebit_m = acc(out, lambda x: x['m'], lambda x: x['ebit'])
+        # накопление прибыли по ОСНО: ключ 'consolidated' при консолидированном
+        # учёте, иначе название организации
         rows_out, cum_osno = [], {}
         for r in out:
             tax = base = 0
@@ -553,13 +555,28 @@ def fill_planned_indicators():
 
             else:  # ОСНО
                 if r['type'] == 'ИП':
-                    if r['prevM'] != 'ОСНО': cum_osno[r['org']] = 0
+                    # НДФЛ рассчитывается по накопленной прибыли.
+                    # В режиме консолидации учитываем общий итог группы.
+                    group_key = ('consolidated'
+                                 if org_cfg.get(r['org'], {}).get('consolidation', False)
+                                 else r['org'])
+                    # Сбрасываем накопление только один раз при переходе группы
+                    if r['prevM'] != 'ОСНО' and group_key not in cum_osno:
+                        cum_osno[group_key] = 0
                     base = max(r['ebit'], 0)
-                    prev = cum_osno.get(r['org'], 0); cum = prev + base
-                    tax = round(ndfl_prog(cum) - ndfl_prog(prev)); cum_osno[r['org']] = cum
+                    prev = cum_osno.get(group_key, 0)
+                    cum = prev + base
+                    tax = round(ndfl_prog(cum) - ndfl_prog(prev))
+                    cum_osno[group_key] = cum
                     rate = f"{(tax / base * 100):.2f}%" if base else '0%'
+                    log_info(
+                        f"[TAX] {r['org']} | ОСНО | group={group_key} | prev={prev:,.2f} | base={base:,.2f} → tax={tax}"
+                    )
                 else:
-                    base = max(r['ebit'], 0); tax = round(base * 0.25); rate = '25%'
+                    # Для юр. лиц ставка фиксированная, без накопления
+                    base = max(r['ebit'], 0)
+                    tax = round(base * 0.25)
+                    rate = '25%'
             rows_out.append([
                 #  1  Организация
                 r['org'],
