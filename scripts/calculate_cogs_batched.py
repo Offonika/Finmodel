@@ -5,6 +5,9 @@ import xlwings as xw
 import pandas as pd
 import math
 import logging, datetime, pathlib
+
+# Налоговая списываемость закупочной цены в зависимости от типа логистики
+TAX_DEDUCTIBLE_BY_LOGISTIC = {'Карго': False, 'Белая': True}
 RUS_TO_LAT = str.maketrans("АВЕКМНОРСТХ",
                            "ABEKMHOPCTX")  # кир → лат
 # --- Вставь сразу после import'ов ---
@@ -224,9 +227,12 @@ def main():
             
      
 
-        header = ['Организация','Артикул_поставщика','Предмет','Наименование',
-                  'Закуп_Цена_руб','Логистика_руб','Пошлина_руб','НДС_руб',
-                  'Себестоимость_руб','Себестоимость_без_НДС_руб','Входящий_НДС_руб']
+        header = [
+            'Организация', 'Артикул_поставщика', 'Предмет', 'Наименование',
+            'Закуп_Цена_руб', 'Логистика_руб', 'Пошлина_руб', 'НДС_руб',
+            'Себестоимость_руб', 'Себестоимость_без_НДС_руб', 'Входящий_НДС_руб',
+            'СебестоимостьУпр', 'СебестоимостьНалог'
+        ]
         result_ws.clear();  result_ws.range(1,1).value = header
         first_free = 2
 
@@ -287,11 +293,16 @@ def main():
                 total_cogs      = purchase_rub + duty_rub + logistics_rub + vat_rub
                 cogs_without_vat = total_cogs - vat_rub
 
+                # --- себестоимость по управленческому и налоговому учёту ---
+                is_deductible = TAX_DEDUCTIBLE_BY_LOGISTIC.get(logistics_mode, True)
+                cogs_mgmt  = purchase_rub
+                cogs_tax   = purchase_rub if is_deductible else 0
+
                 batch_out.append([
                     org, vendor_orig, subject, name,
                     round(purchase_rub), round(logistics_rub), round(duty_rub),
                     round(vat_rub),      round(total_cogs),    round(cogs_without_vat),
-                    round(vat_rub)
+                    round(vat_rub), round(cogs_mgmt), round(cogs_tax)
                 ])
 
             if batch_out:
@@ -310,6 +321,22 @@ def main():
         rng = result_ws.range((1,1), (first_free-1, len(header)))
         result_ws.tables.add(rng, name=TABLE_NAME,
                              table_style_name=TABLE_STYLE, has_headers=True)
+        # Форматирование рублёвых колонок с разделителем тысяч
+        try:
+            tbl = result_ws.api.ListObjects(TABLE_NAME)
+            fmt = '#,##0 ₽'
+            rub_cols = [
+                'Закуп_Цена_руб', 'Логистика_руб', 'Пошлина_руб', 'НДС_руб',
+                'Себестоимость_руб', 'Себестоимость_без_НДС_руб', 'Входящий_НДС_руб',
+                'СебестоимостьУпр', 'СебестоимостьНалог'
+            ]
+            headers = [c.Name for c in tbl.ListColumns]
+            for col_name in rub_cols:
+                if col_name in headers:
+                    idx = headers.index(col_name) + 1
+                    tbl.ListColumns(idx).Range.NumberFormat = fmt
+        except Exception as e:
+            log(f'Не удалось применить формат: {e}', 'warning')
         result_ws.autofit()
         log("Готово, файл сохранён"); print("✓ Готово!")
 
