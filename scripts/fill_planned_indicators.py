@@ -72,9 +72,15 @@ def open_wb():
         log_info(f'→ Консоль-режим: {EXCEL_PATH}')
     return wb, app
 
-parse_money = lambda v: float(
-    ''.join(c for c in str(v).replace(' ', '').replace('₽', '')
-            if c.isdigit() or c in '-.')) if v not in (None, '') else 0.0
+def parse_money(v):
+    if v in (None, ''):
+        return 0.0
+    s = ''.join(
+        c
+        for c in str(v).replace(' ', '').replace('₽', '')
+        if c.isdigit() or c in '-.'
+    )
+    return float(s)
 
 def parse_month(val):
     """
@@ -152,7 +158,7 @@ def log_nds(month, org, prev, curr, mode, rate, lvl):
 def fill_planned_indicators():
     headers = ['Организация', 'Месяц', 'Выручка, ₽', 'Выручка накоп., ₽',
            'Выручка сводно, ₽', 'Выручка без НДС, ₽', 'НДС, ₽',
-           'Ставка НДС, %', 'Себестоимость руб', 'Себестоимость без НДС',
+           'Ставка НДС, %', 'Себестоимость руб', 'Себестоимость Налог, ₽', 'Себестоимость без НДС',
            'Расх. MP с НДС, ₽',          # ← новая колонка (брутто)
            'Расх. MP без НДС, ₽',        # ← бывшая «Расх. MP, ₽»
            'ФОТ, ₽', 'ЕСН, ₽', 'Прочие, ₽', 'EBITDA, ₽',
@@ -261,7 +267,8 @@ def fill_planned_indicators():
             ))
 
         if not rows:
-            log_info('⚠️  Нет данных — выходим'); return
+            log_info('⚠️  Нет данных — выходим')
+            return
 
         # === 4.5 НастройкиОрганизаций ===================================
         if SHEET_ORG not in sheet_names:
@@ -365,11 +372,11 @@ def fill_planned_indicators():
         months = sorted(rev_m)
         cum_all, s = {}, 0
         for m in months:
-            s += rev_m[m]; cum_all[m] = s
+            s += rev_m[m]
+            cum_all[m] = s
 
 # --- ставка НДС по консолидированному обороту на каждый месяц ---
 
-        consolidated_orgs = [org for org, cfg in org_cfg.items() if cfg['consolidation']]
         any_osno = any(cfg['orig_mode'] == 'ОСНО' for org, cfg in org_cfg.items() if cfg['consolidation'])
 
         nds_by_month = {}
@@ -625,31 +632,33 @@ def fill_planned_indicators():
                 f"{round(r['nds'])}%",
                 #  9  Себестоимость руб
                 round(r['cr']),
-                # 10  Себестоимость без НДС
+                # 10  Себестоимость Налог, ₽
+                round(r['ct']),
+                # 11  Себестоимость без НДС
                 round(r['cn']),
-                # 11  Расх. MP с НДС, ₽   (брутто)
+                # 12  Расх. MP с НДС, ₽   (брутто)
                 round(r['mpGross']),
-                # 12  Расх. MP без НДС, ₽ (нетто)
+                # 13  Расх. MP без НДС, ₽ (нетто)
                 round(r['mpNet']),
-                # 13  ФОТ, ₽
+                # 14  ФОТ, ₽
                 round(r['fot']),
-                # 14  ЕСН, ₽
+                # 15  ЕСН, ₽
                 round(r['esn']),
-                # 15  Прочие, ₽
+                # 16  Прочие, ₽
                 round(r['oth']),
-                # 16  EBITDA, ₽
+                # 17  EBITDA, ₽
                 round(r['ebit']),
-                # 17  EBITDA накоп., ₽
+                # 18  EBITDA накоп., ₽
                 round(r['cumE']),
-                # 18  EBITDA сводно, ₽
+                # 19  EBITDA сводно, ₽
                 round(ebit_m[r['m']]),
-                # 19  Режим
+                # 20  Режим
                 r['mode'],
-                # 20  Ставка УСН, %
+                # 21  Ставка УСН, %
                 rate,
-                # 21  Налог, ₽
+                # 22  Налог, ₽
                 tax,
-                # 22  Чистая прибыль, ₽
+                # 23  Чистая прибыль, ₽
                 round(r['ebit'] - tax)
             ])
 
@@ -708,6 +717,9 @@ def fill_planned_indicators():
             ruble_idx = [headers.index(c) + 1 for c in ruble_cols]
             for i in ruble_idx:
                 lo.ListColumns(i).Range.NumberFormat = fmt
+            # ensure explicit format for the new tax COGS column
+            col_ct = headers.index('Себестоимость Налог, ₽') + 1
+            lo.DataBodyRange.Columns(col_ct).NumberFormat = '#,##0 ₽'
 
         finally:
             wb.app.calculation     = calc
@@ -739,7 +751,8 @@ def fill_planned_indicators():
         if wb:
             wb.save()
             if app:
-                wb.close(); app.quit()
+                wb.close()
+                app.quit()
 
 # ---------- 5. Точка входа -----------------------------------------------
 
