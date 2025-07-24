@@ -7,6 +7,8 @@ import logging
 from datetime import datetime
 import os
 
+from scripts.style_utils import format_table
+
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
 EXCEL_PATH = os.path.join(BASE_DIR, 'excel', 'Finmodel.xlsm')
 SHEET_NAME = 'НачисленияУслугОзон'
@@ -30,16 +32,11 @@ def write_to_excel(df: pd.DataFrame):
         sht.range("A1").value = df.columns.tolist()
         sht.range("A2").value = df.values.tolist()
 
-        # --- Оформление как умная таблица зелёный стиль (Medium 7) ---
+        # --- Оформление таблицы и шапки ---
         last_row = df.shape[0] + 1  # +1 для шапки
         last_col = df.shape[1]
         table_range = sht.range((1, 1), (last_row, last_col))
-        for tbl in sht.tables:
-            if tbl.name == "ServiceChargesTable":
-                tbl.delete()
-        sht.tables.add(table_range, name="ServiceChargesTable", table_style_name="TableStyleMedium7", has_headers=True)
-        sht.range('A1').expand().columns.autofit()
-        sht.api.Rows(1).Font.Bold = True
+        format_table(sht, table_range, "ServiceChargesTable")
         sht.api.Application.ActiveWindow.SplitRow = 1
         sht.api.Application.ActiveWindow.FreezePanes = True
 

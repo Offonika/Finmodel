@@ -5,6 +5,8 @@ import xlwings as xw
 import pandas as pd
 import re
 
+from scripts.style_utils import format_table
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 EXCEL_PATH = os.path.join(BASE_DIR, 'excel', 'Finmodel.xlsm') 
 
@@ -121,14 +123,8 @@ def main():
             rev_ws.range((sum_row, c)).number_format = '0 ₽'
 
         # Оформляем как умную таблицу
-        for tbl in rev_ws.tables:
-            if tbl.name == TABLE_NAME:
-                tbl.delete()
         table_range = rev_ws.range((1,1), (sum_row, total_col))
-        rev_ws.tables.add(table_range, name=TABLE_NAME, table_style_name=TABLE_STYLE, has_headers=True)
-
-        rev_ws.range('A1').expand().columns.autofit()
-        rev_ws.api.Rows(1).Font.Bold = True
+        format_table(rev_ws, table_range, TABLE_NAME)
         rev_ws.api.Application.ActiveWindow.SplitRow = 1
         rev_ws.api.Application.ActiveWindow.FreezePanes = True
         print('→ Данные и форматирование записаны')
