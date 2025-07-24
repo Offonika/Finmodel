@@ -481,16 +481,16 @@ def fill_planned_indicators():
         if cons_rows:
             # Годовая проверка
             total_income = sum(r['revN'] for r in cons_rows)
-            real_tax_sum = sum(round(max(r['ebit'], 0) * r['usn'] / 100) for r in cons_rows)
-            min_tax_sum = round(total_income * 0.01)
+            group_profit = sum(r['ebit'] for r in cons_rows)
+            real_tax_sum = round(max(group_profit, 0) * cons_rows[0]['usn'] / 100)
+            min_tax_sum  = round(total_income * 0.01)
+
             if real_tax_sum < min_tax_sum:
                 for r in cons_rows:
                     r['usn_forced_min'] = True
-                    r['tax'] = round(r['revN'] * 0.01)
             else:
                 for r in cons_rows:
                     r['usn_forced_min'] = False
-                    r['tax'] = round(max(r['ebit'], 0) * r['usn'] / 100)
 
         # 3. Для остальных организаций – по отдельности (за год 1–12)
         org_groups = defaultdict(list)
@@ -500,16 +500,15 @@ def fill_planned_indicators():
 
         for org, rows in org_groups.items():
             total_income = sum(r['revN'] for r in rows)
-            real_tax_sum = sum(round(max(r['ebit'], 0) * r['usn'] / 100) for r in rows)
-            min_tax_sum = round(total_income * 0.01)
+            group_profit = sum(r['ebit'] for r in rows)
+            real_tax_sum = round(max(group_profit, 0) * rows[0]['usn'] / 100)
+            min_tax_sum  = round(total_income * 0.01)
             if real_tax_sum < min_tax_sum:
                 for r in rows:
                     r['usn_forced_min'] = True
-                    r['tax'] = round(r['revN'] * 0.01)
             else:
                 for r in rows:
                     r['usn_forced_min'] = False
-                    r['tax'] = round(max(r['ebit'], 0) * r['usn'] / 100)
 
         # ---- 3A. Консолидация "Доходы" с учётом взносов по группе -----
         cons_income = defaultdict(list)

@@ -7,8 +7,9 @@ import logging
 from datetime import datetime
 import os
 
-BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
-EXCEL_PATH = os.path.join(BASE_DIR, 'excel', 'Finmodel.xlsm')
+BASE_DIR    = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR = os.path.dirname(BASE_DIR)
+EXCEL_PATH  = os.path.join(PROJECT_DIR, 'excel', 'Finmodel.xlsm')
 SHEET_NAME = 'НачисленияУслугОзон'
 
 def get_workbook():

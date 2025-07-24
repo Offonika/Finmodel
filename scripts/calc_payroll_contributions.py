@@ -13,7 +13,6 @@
 # ---------- Пути --------------------------------------------------
 import os, sys, logging, xlwings as xw, pandas as pd
 from datetime import datetime
-import pandas as pd
 import datetime as dt
 import argparse
 from decimal import Decimal
