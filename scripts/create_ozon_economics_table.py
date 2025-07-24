@@ -214,7 +214,7 @@ def main():
         sheet.range((2, 6), (last_row, 6)).api.NumberFormat = '0.00"%"'
         # Рубли (5,7-22)
         for c in [5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]:
-            sheet.range((2, c), (last_row, c)).api.NumberFormat = '0 ₽'
+            sheet.range((2, c), (last_row, c)).api.NumberFormat = '#,##0 ₽'
         # Кол-во, шт (4)
         sheet.range((2, 4), (last_row, 4)).api.NumberFormat = '0'
 

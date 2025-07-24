@@ -338,7 +338,7 @@ def main():
 
         for idx in rub_cols:
             c = idx + 1
-            res.range((2, c), (last_row, c)).api.NumberFormat = '0 ₽'
+            res.range((2, c), (last_row, c)).api.NumberFormat = '#,##0 ₽'
         if pct_col is not None:
             c = pct_col + 1
             res.range((2, c), (last_row, c)).api.NumberFormat = '0%'
@@ -350,7 +350,7 @@ def main():
             col = col_letter(c)
             res.range((total_row, c)).formula = f'=SUBTOTAL(9,{col}2:{col}{total_row-1})'
             res.range((total_row, c)).api.Font.Bold = True
-            res.range((total_row, c)).api.NumberFormat = '0 ₽'
+            res.range((total_row, c)).api.NumberFormat = '#,##0 ₽'
 
         res.autofit()
         res.api.Rows.AutoFit()
