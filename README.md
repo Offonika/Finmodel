@@ -243,6 +243,7 @@ scripts/import_ozon_price_info.py
 📈 Экономика – update_monthly_scenario_calc.py, economics_table.py
 
 📊 Плановые показатели – fill_planned_indicators.py
+В PlannedIndicatorsTbl выводятся обе себестоимости: управленческая и налоговая.
 
 🖱️ ЗапуститьВсеРасчёты – макро‑оркестратор, выполняет 4 шага подряд.
 

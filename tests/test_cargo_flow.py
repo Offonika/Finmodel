@@ -14,7 +14,7 @@ def run_pipeline(prod_df, price_df, duty_df, orgs_df, settings):
         vendor_norm = str(vendor_orig).strip().upper()
         subject = row['Предмет']
         name = row['Название']
-        weight = float(row.get('Вес_брутто', 0) or 0)
+        _weight = float(row.get('Вес_брутто', 0) or 0)
 
         price_row = price_dict.get(vendor_norm, {})
         logistics_mode = price_row.get('Тип_Логистики')
@@ -31,26 +31,16 @@ def run_pipeline(prod_df, price_df, duty_df, orgs_df, settings):
         purchase_rub = price_val * rate
 
         duty_row = duty_dict.get(subject)
-        kg_rate = settings['cargoRatePerKg'] if logistics_mode == 'Карго' else settings['whiteRatePerKg']
-        logistics_rub = weight * kg_rate * settings['usdRate']
-
-        duty_rate = 0
+        _duty_rate = 0
         if logistics_mode == 'Белая' and duty_row is not None:
             raw = duty_row.get('Ставка_пошлины') or duty_row.get('Пошлина')
             if raw:
                 raw_str = str(raw).replace('%', '').replace(',', '.').strip()
                 try:
-                    duty_rate = float(raw_str) if float(raw_str) < 1 else float(raw_str) / 100
+                    _duty_rate = float(raw_str) if float(raw_str) < 1 else float(raw_str) / 100
                 except Exception:
-                    duty_rate = 0
-        duty_rub = purchase_rub * duty_rate
+                    _duty_rate = 0
 
-        vat_rub = (
-            (purchase_rub + duty_rub + logistics_rub) * settings['ndsRateWhite']
-            if logistics_mode == 'Белая' else 0
-        )
-        total_cogs = purchase_rub + duty_rub + logistics_rub + vat_rub
-        cogs_without_vat = total_cogs - vat_rub
 
         is_deductible = TAX_DEDUCTIBLE_BY_LOGISTIC.get(logistics_mode, True)
         cogs_mgmt = purchase_rub
@@ -95,4 +85,36 @@ def test_cargo_tax_zero():
 
     result = run_pipeline(prod_df, price_df, duty_df, orgs_df, settings)
     assert (result['СебестоимостьНалог'] == 0).all()
+
+
+def test_management_vs_tax_cogs():
+    prod_df = pd.DataFrame({
+        'Организация': ['Org1', 'Org1'],
+        'Артикул_поставщика': ['IT1', 'IT2'],
+        'Предмет': ['Cat', 'Cat'],
+        'Название': ['N1', 'N2'],
+        'Вес_брутто': [1, 1],
+    })
+
+    price_df = pd.DataFrame({
+        'Артикул_поставщика': ['IT1', 'IT2'],
+        'Закуп_Цена': [100, 100],
+        'Валюта': ['RUB', 'RUB'],
+        'Тип_Логистики': ['Карго', 'Белая'],
+    })
+
+    duty_df = pd.DataFrame({'Предмет': ['Cat'], 'Ставка_пошлины': [0]})
+    orgs_df = pd.DataFrame({'Организация': ['Org1'], 'Тип_Логистики': ['Белая']})
+    settings = {
+        'cargoRatePerKg': 0,
+        'whiteRatePerKg': 0,
+        'usdRate': 1,
+        'cnyRate': 1,
+        'ndsRateWhite': 0.2,
+    }
+
+    result = run_pipeline(prod_df, price_df, duty_df, orgs_df, settings)
+    assert 'СебестоимостьУпр' in result.columns
+    assert 'СебестоимостьНалог' in result.columns
+    assert result['СебестоимостьУпр'].sum() > result['СебестоимостьНалог'].sum()
 
