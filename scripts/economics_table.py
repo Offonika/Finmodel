@@ -163,14 +163,20 @@ def build_ozon_economics_table():
         cost_df = ws_cost.used_range.options(pd.DataFrame, header=1, index=False).value
         cost_df = _drop_totals(cost_df)  # <--- добавлено
 
-        for col in ["СебестоимостьУпр", "СебестоимостьНалог"]:
+        tax_col_new = "Себестоимость_Налог, руб (новый)"
+        tax_col_old = "СебестоимостьНалог"
+
+        for col in ["СебестоимостьУпр", tax_col_new]:
             if col not in cost_df.columns:
-                cost_df[col] = 0
+                if col == tax_col_new and tax_col_old in cost_df.columns:
+                    cost_df[col] = cost_df[tax_col_old]
+                else:
+                    cost_df[col] = 0
 
         cost_df = cost_df[[
             "Организация", "Артикул_поставщика",
             "Себестоимость_руб", "Себестоимость_без_НДС_руб",
-            "СебестоимостьУпр", "СебестоимостьНалог",
+            "СебестоимостьУпр", tax_col_new,
         ]]
 
         records = []
@@ -231,7 +237,7 @@ def build_ozon_economics_table():
                     cost_unit     = Decimal(str(first["Себестоимость_руб"]))
                     cost_unit_nds = Decimal(str(first["Себестоимость_без_НДС_руб"]))
                     cost_mgmt     = Decimal(str(first.get("СебестоимостьУпр", 0)))
-                    cost_tax      = Decimal(str(first.get("СебестоимостьНалог", 0)))
+                    cost_tax      = Decimal(str(first.get(tax_col_new, first.get(tax_col_old, 0))))
 
                 cogs        = cost_unit     * qty_dec
                 cogs_no_vat = cost_unit_nds * qty_dec
