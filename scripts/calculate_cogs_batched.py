@@ -7,9 +7,8 @@ import math
 import logging, datetime, pathlib
 
 # Налоговая списываемость закупочной цены в зависимости от типа логистики
-TAX_DEDUCTIBLE_BY_LOGISTIC = {'Карго': False, 'Белая': True}
-RUS_TO_LAT = str.maketrans("АВЕКМНОРСТХ",
-                           "ABEKMHOPCTX")  # кир → лат
+TAX_DEDUCTIBLE_BY_LOGISTIC = {"Карго": False, "Белая": True}
+RUS_TO_LAT = str.maketrans("АВЕКМНОРСТХ", "ABEKMHOPCTX")  # кир → лат
 # --- Вставь сразу после import'ов ---
 def rgb_to_excel_tab_color(r, g, b):
     """Преобразует RGB в BGR-целое для ws.api.Tab.Color (Excel COM)."""
@@ -24,6 +23,13 @@ def hex_to_excel_tab_color(hex_str):
     g = int(hex_str[2:4], 16)
     b = int(hex_str[4:6], 16)
     return rgb_to_excel_tab_color(r, g, b)
+
+
+def _taxable_cost(price_rub: float, vat_rub: float, duty_rub: float, *, logistics: str) -> float:
+    """Return taxable COGS for a single item."""
+    if not TAX_DEDUCTIBLE_BY_LOGISTIC.get(logistics, True):
+        return 0.0
+    return price_rub + vat_rub + duty_rub
 
 def norm(key: str) -> str:
     """
