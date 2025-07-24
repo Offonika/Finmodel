@@ -2,7 +2,10 @@
 
 import os
 import xlwings as xw
-import win32com.client
+try:
+    import win32com.client  # type: ignore
+except Exception:  # pragma: no cover - optional on non-Windows
+    win32com = None
 import math#
 import re
 import pandas as pd
@@ -29,6 +32,27 @@ def wb_code_key(val):
         return str(int(float(val)))
     except Exception:
         return str(val).strip()
+
+
+def build_redemption_rate(df, nm_to_wb=None):
+    """Return mapping wb_code -> redemption percent."""
+    nm_to_wb = nm_to_wb or {}
+    rate = {}
+    for _, row in df.iterrows():
+        perc = row.get('% выкупа')
+        if pd.isna(perc):
+            continue
+        wb_key = None
+        if 'wb_code' in row and pd.notna(row['wb_code']):
+            wb_key = wb_code_key(row['wb_code'])
+        else:
+            nmid = row.get('nmId')
+            if pd.notna(nmid):
+                nm_key = wb_code_key(nmid)
+                wb_key = wb_code_key(nm_to_wb.get(nm_key, nm_key))
+        if wb_key:
+            rate[str(wb_key)] = float(perc)
+    return rate
 
 
 def idx_from_header(header_row):
@@ -93,17 +117,6 @@ def main():
             else:
                 print(f'❌ Не найден лист: {sheet_name}')
                 return
-        # --- Загрузка % выкупа из %ВыкупаWB ---
-        print('📈 Загрузка процента выкупа из %ВыкупаWB...')
-        wb_sheetnames = [s.name for s in wb.sheets]
-        if '%ВыкупаWB' in wb_sheetnames:
-            s_wb = wb.sheets['%ВыкупаWB']
-            wb_table = s_wb.range('A1').options(pd.DataFrame, header=1, index=False, expand='table').value
-            redemption_rate = {str(row['nmId']): float(row['% выкупа']) for _, row in wb_table.iterrows() if not pd.isna(row['nmId']) and not pd.isna(row['% выкупа'])}
-        else:
-            print('[WARN] Лист %ВыкупаWB не найден! Будет использоваться 95% по умолчанию.')
-            redemption_rate = {}
-
         # 2. Индексы по заголовкам
         print('📄 Загрузка заголовков...')
         pIdx = idx_from_header(sh['plan_sales'].range(1, 1).expand('right').value)
@@ -115,8 +128,13 @@ def main():
         # 3. Справочник товаров — используем Артикул_WB как ключ!
         print('📘 Чтение справочника товаров...')
         dicts = {}
+        nm_to_wb = {}
+        nm_col = next((dIdx[c] for c in ['nmId', 'nmID', 'Код_номенклатуры'] if c in dIdx), None)
         for r in sh['dict'].range(2, 1).expand('table').value:
             wb_code = wb_code_key(r[dIdx['Артикул_WB']])
+            if nm_col is not None:
+                nm_key = wb_code_key(r[nm_col])
+                nm_to_wb[nm_key] = wb_code
             # пробуем взять объем из колонки
             try:
                 volL = float(r[dIdx.get('Объем_литр', -1)]) if 'Объем_литр' in dIdx else None
@@ -139,7 +157,16 @@ def main():
                 'art_postav': r[dIdx.get('Артикул_поставщика', -1)] if 'Артикул_поставщика' in dIdx else '',
             }
 
-
+        # --- Загрузка % выкупа из %ВыкупаWB ---
+        print('📈 Загрузка процента выкупа из %ВыкупаWB...')
+        wb_sheetnames = [s.name for s in wb.sheets]
+        if '%ВыкупаWB' in wb_sheetnames:
+            s_wb = wb.sheets['%ВыкупаWB']
+            wb_table = s_wb.range('A1').options(pd.DataFrame, header=1, index=False, expand='table').value
+            redemption_rate = build_redemption_rate(wb_table, nm_to_wb)
+        else:
+            print('[WARN] Лист %ВыкупаWB не найден! Будет использоваться 95% по умолчанию.')
+            redemption_rate = {}
 
 
         # 4. Комиссии
