@@ -332,6 +332,72 @@ def compute_ozon_economics_df(
 
     return result_df
 
+
+def compute_wb_economics_df(plan_df: pd.DataFrame, cost_df: pd.DataFrame) -> pd.DataFrame:
+    """Simplified computation of Wildberries economics for tests."""
+    month_cols = [c for c in plan_df.columns if c.startswith("Мес.")]
+    records: list[dict] = []
+    for _, row in plan_df.iterrows():
+        for col in month_cols:
+            qty = row.get(col, 0) or 0
+            if qty == 0:
+                continue
+            month_num = int(col.split(".")[-1])
+            revenue = float(row.get("Выручка, ₽", 0))
+            comm_rate = float(row.get("Комиссия WB %", 0))
+            commission = revenue * comm_rate
+
+            cs_row = cost_df[
+                (cost_df["Организация"] == row["Организация"]) &
+                (cost_df["Артикул_поставщика"] == row["Артикул_поставщика"])
+            ]
+            if cs_row.empty:
+                c_unit = c_unit_wo = c_tax = c_tax_wo = 0.0
+            else:
+                first = cs_row.iloc[0]
+                c_unit = float(first.get("Себестоимость_руб", 0))
+                c_unit_wo = float(first.get("Себестоимость_без_НДС_руб", 0))
+                c_tax = float(first.get("СебестоимостьНалог", c_unit_wo))
+                c_tax_wo = float(first.get("СебестоимостьНалог_без_НДС", c_tax))
+
+            cogs = c_unit * qty
+            cogs_wo = c_unit_wo * qty
+            cogs_tax = c_tax * qty
+            cogs_tax_wo = c_tax_wo * qty
+            gp_tax = revenue - cogs_tax
+            ebit_tax = gp_tax - commission
+
+            records.append(
+                dict(
+                    Организация=row["Организация"],
+                    Артикул_WB=row.get("Артикул_WB"),
+                    Артикул_поставщика=row["Артикул_поставщика"],
+                    Предмет=row.get("Предмет", ""),
+                    Месяц=month_num,
+                    **{
+                        "Кол-во, шт": qty,
+                        "Выручка, ₽": revenue,
+                        "Комиссия WB %": comm_rate,
+                        "Комиссия WB, ₽": commission,
+                        "Логистика, ₽": 0,
+                        "Хранение, ₽": 0,
+                        "Реклама, ₽": 0,
+                        "Расходы МП, ₽": commission,
+                        "СебестоимостьПродажРуб": cogs,
+                        "СебестоимостьПродажБезНДС": cogs_wo,
+                        "СебестоимостьПродажНалог, ₽": cogs_tax,
+                        "СебестоимостьПродажНалог_без_НДС, ₽": cogs_tax_wo,
+                        "ВаловаяПрибыль_Налог, ₽": gp_tax,
+                        "EBITDA_Упр, ₽": revenue - commission - cogs,
+                        "EBITDA_Налог, ₽": ebit_tax,
+                        "ЧистаяПрибыль_Упр, ₽": revenue - commission - cogs,
+                        "ЧистаяПрибыль_Налог, ₽": ebit_tax,
+                    },
+                )
+            )
+
+    return pd.DataFrame(records)
+
 # ---------- Основная логика -------------------------------------------------
 
 def build_ozon_economics_table():
