@@ -562,6 +562,7 @@ def fill_planned_indicators():
                                  else r['org'])
                     # Сбрасываем накопление только один раз при переходе группы
                     if r['prevM'] != 'ОСНО' and group_key not in cum_osno:
+
                         cum_osno[group_key] = 0
                     base = max(r['ebit'], 0)
                     prev = cum_osno.get(group_key, 0)
