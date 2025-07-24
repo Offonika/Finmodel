@@ -45,21 +45,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))   # ← был позже 
 LOG_DIR  = pathlib.Path(BASE_DIR, "log")
 LOG_DIR.mkdir(exist_ok=True)
 LOG_FILE = LOG_DIR / f"cogs_{datetime.datetime.now():%Y%m%d_%H%M%S}.log"
-# ---------- ДОБАВЬТЕ СРАЗУ ПОСЛЕ import'ов --------------------
-
-
-LOG_FILE = os.path.join(
-    BASE_DIR,
-    f"planned_indicators_{datetime.datetime.now():%Y%m%d_%H%M%S}.log"
-)
-logging.basicConfig(
-    filename=LOG_FILE,
-    level=logging.INFO,                 # INFO→видно всё; WARNING→только ошибки
-    format="%(asctime)s  %(message)s",
-    encoding="utf-8",
-)
-log = logging.getLogger(__name__)
-# --------------------------------------------------------------
 
 logging.basicConfig(
     filename=str(LOG_FILE),
