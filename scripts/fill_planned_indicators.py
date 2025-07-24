@@ -729,8 +729,12 @@ def fill_planned_indicators():
         for idx, col in enumerate(headers, start=1):
             if col in ruble_cols:
                 letter = col_name(idx)
-                sh.range(total_row, idx).formula = \
-                    f"=SUBTOTAL(109,{letter}$2:{letter}${last_row})"
+                if col == 'Себестоимость Налог, ₽':
+                    sh.range(total_row, idx).formula = \
+                        "=SUBTOTAL(109,[Себестоимость Налог, ₽])"
+                else:
+                    sh.range(total_row, idx).formula = \
+                        f"=SUBTOTAL(109,{letter}$2:{letter}${last_row})"
                 sh.range(total_row, idx).number_format = fmt
 
 
