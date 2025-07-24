@@ -483,30 +483,24 @@ def fill_planned_indicators():
 
         from collections import defaultdict
 
-        # 1. Группировка: ключ – ('consolidated', год) или (org, год)
-        grouped = defaultdict(list)
-        for r in out:
-            if r['mode'] == 'Доходы-Расходы' and 1 <= r['m'] <= 12:
-                is_cons = org_cfg.get(r['org'], {}).get('consolidation', False)
-                key = ('consolidated', r['m']) if is_cons else (r['org'], r['m'])
-                grouped[key].append(r)
+        # --- 1A. группируем все строки режима Д-Р с консолидацией в один список
+        consolidated_dr = [
+            r for r in out
+            if r['mode'] == 'Доходы-Расходы'
+            and org_cfg.get(r['org'], {}).get('consolidation', False)
+        ]
 
-        # 2. Для консолидационной группы — за год (месяцы 1–12)
-        cons_rows = [r for (k, m), rows in grouped.items() if k == 'consolidated' for r in rows if 1 <= r['m'] <= 12]
-        if cons_rows:
-            # Годовая проверка
-            total_income  = sum(r['revN'] for r in cons_rows)
-            group_profit  = sum(r['tax_base'] for r in cons_rows)
-            real_tax_sum  = round(max(group_profit, 0) * cons_rows[0]['usn'] / 100)
-            min_tax_sum   = round(total_income * 0.01)
-            if real_tax_sum < min_tax_sum:
-                for r in cons_rows:
-                    r['usn_forced_min'] = True
-                    r['tax'] = round(r['revN'] * 0.01)
-            else:
-                for r in cons_rows:
-                    r['usn_forced_min'] = False
-                    r['tax'] = round(max(r['tax_base'], 0) * r['usn'] / 100)
+        if consolidated_dr:
+            total_income = sum(r['revN'] for r in consolidated_dr)
+            total_base   = sum(r['tax_base'] for r in consolidated_dr)
+            real_tax_sum = round(max(total_base, 0) * consolidated_dr[0]['usn'] / 100)
+            min_tax_sum  = round(total_income * 0.01)
+
+            use_min = real_tax_sum < min_tax_sum
+            for r in consolidated_dr:
+                r['usn_forced_min'] = use_min
+                r['tax'] = round(r['revN'] * 0.01) if use_min \
+                           else round(max(r['tax_base'], 0) * r['usn'] / 100)
 
         # 3. Для остальных организаций – по отдельности (за год 1–12)
         org_groups = defaultdict(list)
