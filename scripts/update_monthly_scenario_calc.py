@@ -269,12 +269,12 @@ def main():
                 expMP    = commRub + logiRub + STORE * qty + advRub
 
                 cost_mgmt = unitC.get('mgmt', unitC['rub']) * qty
-                cost_tax  = unitC.get('tax', unitC['rubWo']) * qty
-                cost_tax_wo = unitC.get('tax_wo', unitC.get('tax', unitC['rubWo'])) * qty
-                gp_tax = rev - cost_tax
+                cogs_tax = unitC.get('tax', unitC['rubWo']) * qty
+                cogs_tax_wo_vat = unitC.get('tax_wo', unitC.get('tax', unitC['rubWo'])) * qty
+                gp_tax = rev - cogs_tax
 
                 ebitda_mgmt = rev - expMP - cost_mgmt
-                ebitda_tax  = rev - expMP - cost_tax
+                ebitda_tax  = rev - expMP - cogs_tax
 
                 # ВЫВОДИМ В РЕЗУЛЬТАТ Артикул_WB как 2-ю колонку!
                 out.append([
@@ -285,8 +285,8 @@ def main():
                     expMP,
                     unitC['rub']   * qty,
                     unitC['rubWo'] * qty,
-                    cost_tax,
-                    cost_tax_wo,
+                    cogs_tax,
+                    cogs_tax_wo_vat,
                     gp_tax,
                     round(ebitda_mgmt),
                     round(ebitda_tax),
