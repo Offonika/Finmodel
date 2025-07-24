@@ -121,7 +121,8 @@ def main():
             "Комиссия %", "Комиссия, ₽", "Оплата эквайринга, ₽",
             "Логистика, ₽", "Обработка отправления, ₽", "Магистраль, ₽", "Последняя миля, ₽",
             "Обратная магистраль, ₽", "Обработка возврата, ₽", "Обратная логистика, ₽",
-            "Реклама, ₽", "Расходы МП, ₽", "СебестоимостьПродажРуб", "Себестоимость_без_НДС_руб"
+            "Реклама, ₽", "Расходы МП, ₽", "СебестоимостьПродажРуб", "Себестоимость_без_НДС_руб",
+            "ВаловаяПрибыль_Упр", "ВаловаяПрибыль_Налог",
         ]
         result = []
 
@@ -163,13 +164,19 @@ def main():
                 costRow = costIdxMap.get(f'{org}||{art}', [])
                 cogsRub   = to_num(costRow[idxCost.get("Себестоимость_руб", -1)]) * qty if costRow else 0
                 cogsNoVat = to_num(costRow[idxCost.get("Себестоимость_без_НДС_руб", -1)]) * qty if costRow else 0
+                cogsMgmt  = to_num(costRow[idxCost.get("СебестоимостьУпр", -1)]) * qty if costRow else 0
+                cogsTax   = to_num(costRow[idxCost.get("СебестоимостьНалог", -1)]) * qty if costRow else 0
+
+                gpMgmt = revenue - cogsMgmt
+                gpTax  = revenue - cogsTax
 
                 result.append([
                     mName, org, art, qty, revenue,
                     commPerc * 100, round(commRub), round(ekvRub),
                     round(logistika), round(otpravka), round(magistral), round(lastMile),
                     round(obrMag), round(obrReturn), round(obrLog),
-                    round(reklRub), round(mpCosts), round(cogsRub), round(cogsNoVat)
+                    round(reklRub), round(mpCosts), round(cogsRub), round(cogsNoVat),
+                    round(gpMgmt), round(gpTax)
                 ])
 
 
@@ -202,8 +209,8 @@ def main():
         # Форматы
         # Комиссия % (6-й столбец)
         sheet.range((2, 6), (last_row, 6)).api.NumberFormat = '0.00"%"'
-        # Рубли (5,7-18)
-        for c in [5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]:
+        # Рубли (5,7-21)
+        for c in [5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21]:
             sheet.range((2, c), (last_row, c)).api.NumberFormat = '0 ₽'
         # Кол-во, шт (4)
         sheet.range((2, 4), (last_row, 4)).api.NumberFormat = '0'

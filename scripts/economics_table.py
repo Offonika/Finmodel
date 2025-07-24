@@ -96,7 +96,8 @@ def _format_table_rub(ws_target):
         "План_шт", "ВыручкаБезСкидок_руб", "БаллыСкидки_руб", "ПрограммыПартнеров_руб", "Выручка_руб",
         "БазовоеВознаграждение_руб", "ВознаграждениеПослСкидок_руб", "УслугиДоставки_руб", "УслугиАгентов_руб",
         "УслугиFBO_руб", "Реклама_руб", "ДругиеУслуги_руб", "ИтогоРасходыМП_руб",
-        "СебестоимостьПродаж_руб", "СебестоимостьБезНДС_руб"
+        "СебестоимостьПродаж_руб", "СебестоимостьБезНДС_руб",
+        "ВаловаяПрибыль_Упр", "ВаловаяПрибыль_Налог",
     ]
     _format_numeric_columns(ws_target, rub_cols, num_format="0")
 
@@ -162,8 +163,15 @@ def build_ozon_economics_table():
         cost_df = ws_cost.used_range.options(pd.DataFrame, header=1, index=False).value
         cost_df = _drop_totals(cost_df)  # <--- добавлено
 
-        cost_df = cost_df[["Организация", "Артикул_поставщика",
-                           "Себестоимость_руб", "Себестоимость_без_НДС_руб"]]
+        for col in ["СебестоимостьУпр", "СебестоимостьНалог"]:
+            if col not in cost_df.columns:
+                cost_df[col] = 0
+
+        cost_df = cost_df[[
+            "Организация", "Артикул_поставщика",
+            "Себестоимость_руб", "Себестоимость_без_НДС_руб",
+            "СебестоимостьУпр", "СебестоимостьНалог",
+        ]]
 
         records = []
         for _, row in plan_df.iterrows():
@@ -216,12 +224,21 @@ def build_ozon_economics_table():
                 if cs_row.empty:
                     cost_unit     = Decimal("0")
                     cost_unit_nds = Decimal("0")
+                    cost_mgmt     = Decimal("0")
+                    cost_tax      = Decimal("0")
                 else:
-                    cost_unit     = Decimal(str(cs_row.iloc[0]["Себестоимость_руб"]))
-                    cost_unit_nds = Decimal(str(cs_row.iloc[0]["Себестоимость_без_НДС_руб"]))
+                    first = cs_row.iloc[0]
+                    cost_unit     = Decimal(str(first["Себестоимость_руб"]))
+                    cost_unit_nds = Decimal(str(first["Себестоимость_без_НДС_руб"]))
+                    cost_mgmt     = Decimal(str(first.get("СебестоимостьУпр", 0)))
+                    cost_tax      = Decimal(str(first.get("СебестоимостьНалог", 0)))
 
                 cogs        = cost_unit     * qty_dec
                 cogs_no_vat = cost_unit_nds * qty_dec
+                cogs_mgmt   = cost_mgmt     * qty_dec
+                cogs_tax    = cost_tax      * qty_dec
+                gp_mgmt     = revenue - cogs_mgmt
+                gp_tax      = revenue - cogs_tax
 
                 records.append(dict(
                     Месяц             = month_num,
@@ -243,6 +260,8 @@ def build_ozon_economics_table():
                     ИтогоРасходыМП_руб        = float(total_mp),
                     СебестоимостьПродаж_руб   = float(cogs),
                     СебестоимостьБезНДС_руб   = float(cogs_no_vat),
+                    ВаловаяПрибыль_Упр        = float(gp_mgmt),
+                    ВаловаяПрибыль_Налог      = float(gp_tax),
                 ))
 
         result_df = (
@@ -256,7 +275,8 @@ def build_ozon_economics_table():
             "План_шт", "ВыручкаБезСкидок_руб", "БаллыСкидки_руб", "ПрограммыПартнеров_руб", "Выручка_руб",
             "БазовоеВознаграждение_руб", "ВознаграждениеПослСкидок_руб", "УслугиДоставки_руб", "УслугиАгентов_руб",
             "УслугиFBO_руб", "Реклама_руб", "ДругиеУслуги_руб", "ИтогоРасходыМП_руб",
-            "СебестоимостьПродаж_руб", "СебестоимостьБезНДС_руб"
+            "СебестоимостьПродаж_руб", "СебестоимостьБезНДС_руб",
+            "ВаловаяПрибыль_Упр", "ВаловаяПрибыль_Налог",
         ]
         for col in numeric_cols:
             if col in result_df:
