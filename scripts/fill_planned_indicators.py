@@ -99,7 +99,15 @@ def parse_month(val):
     return 0
 
 def log_month(*args, **kwargs):
-    pass
+    """Log month parsing results during data import."""
+    if not args and not kwargs:
+        return
+    val = args[0] if args else kwargs.get('val') or kwargs.get('value')
+    src = kwargs.get('src', '')
+    rownum = kwargs.get('rownum', '')
+    reason = kwargs.get('reason', '')
+    msg = f"[MONTH] src={src} row={rownum} value={val!r} {reason}"
+    log_info(msg)
 def build_idx(header): return {str(c).strip().lower(): i for i, c in enumerate(header)}
 
 def read_rows(sh):
