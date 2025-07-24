@@ -152,6 +152,71 @@ def log_nds(month, org, prev, curr, mode, rate, lvl):
     log_info(msg)
 
 
+def load_sales_data(sheet, src, mapping, app=None, optional=None):
+    """Read sales data from *sheet* according to *mapping*.
+
+    Parameters
+    ----------
+    sheet : xlwings Sheet
+        Excel sheet to read.
+    src : str
+        Name of the source sheet for logging and errors.
+    mapping : dict
+        Mapping of internal field names (org, month, rev, mp, cr, cn, ct)
+        to column headers in the sheet (already normalized to lower case).
+    app : xlwings App or None, optional
+        If None, column indices will be logged.
+    optional : list[str] or None, optional
+        Columns that may be absent in the sheet.
+
+    Returns
+    -------
+    list[dict]
+        Parsed rows.
+    """
+    rows, idx_raw = read_rows(sheet)
+    idx = {str(k).strip().lower(): i for k, i in idx_raw.items()}
+
+    if app is None:
+        log_info(f"{src} idx: {idx}")
+
+    optional = optional or []
+    for field, col in mapping.items():
+        if col in optional:
+            continue
+        if col not in idx:
+            raise ValueError(f"Колонка «{col}» отсутствует в {src}")
+
+    has_tax = mapping.get('ct') in idx
+    parsed = []
+    for i, r in enumerate(rows, 2):
+        org = r[idx[mapping['org']]]
+        raw_month = r[idx[mapping['month']]]
+        if not org or str(org).strip().lower() in ('итого', 'total'):
+            continue
+        month = parse_month(raw_month)
+        if month == 0 or not (1 <= month <= 12):
+            log_month(raw_month, src=src, rownum=i,
+                      reason=f'игнорируется, результат parse_month={month}')
+            continue
+        log_month(raw_month, src=src, rownum=i,
+                  reason=f'принят, результат parse_month={month}')
+
+        rec = dict(
+            org=org,
+            month=month,
+            rev=parse_money(r[idx[mapping['rev']]]),
+            mp=parse_money(r[idx[mapping['mp']]]),
+            cr=parse_money(r[idx[mapping['cr']]]),
+            cn=parse_money(r[idx[mapping['cn']]]),
+        )
+        if 'ct' in mapping:
+            rec['ct'] = parse_money(r[idx[mapping['ct']]]) if has_tax else 0
+        parsed.append(rec)
+
+    return parsed
+
+
 
 
 # ---------- 4. Главная функция --------------------------------------------
@@ -175,96 +240,42 @@ def fill_planned_indicators():
         sheet_names = [s.name for s in ss.sheets]
 
         # === 4.2 Данные WB =============================================
-        # === 4.2 Данные WB =============================================
         if SHEET_WB not in sheet_names:
             raise ValueError(f'Нет листа {SHEET_WB}')
 
-        # ❶ читаем строки и индексы
-        wb_rows, wb_idx = read_rows(ss.sheets[SHEET_WB])
-
-        # выводим индексы только при запуске из ТЕРМИНАЛА (app == None)
-        if app is None:          # <<< добавили условие
-            log_info(f'WB idx: {wb_idx}')
-
-
-        # ❸ проверяем обязательные колонки
-        need_wb = [
-            'организация', 'месяц', 'выручка, ₽', 'расходы мп, ₽',
-            'себестоимостьпродажруб', 'себестоимостьпродажбезндс'
-        ]
-        for col in need_wb:
-            if col not in wb_idx:
-                raise ValueError(f'Колонка «{col}» отсутствует в {SHEET_WB}')
-
+        rows = load_sales_data(
+            ss.sheets[SHEET_WB],
+            'WB',
+            {
+                'org': 'организация',
+                'month': 'месяц',
+                'rev': 'выручка, ₽',
+                'mp': 'расходы мп, ₽',
+                'cr': 'себестоимостьпродажруб',
+                'cn': 'себестоимостьпродажбезндс',
+                'ct': 'себестоимостьналог',
+            },
+            app=app,
+            optional=['себестоимостьналог'],
+        )
 
         # === 4.3 Данные Ozon ===========================================
-
-        rows = []
-        oz_rows = []                      # на случай отсутствия листа Ozon
-                         # сюда будем складывать все строки
         if SHEET_OZON in sheet_names:
-            oz_rows, oz_idx_raw = read_rows(ss.sheets[SHEET_OZON])
-
-            # Приводим ключи к нижнему регистру и убираем пробелы
-            oz_idx = {str(k).strip().lower(): i for k, i in oz_idx_raw.items()}
-
-            if app is None:          # <<< только из терминала
-                log_info(f'Ozon idx: {oz_idx}')
-
-
-
-            need_oz = [
-                'организация', 'месяц', 'выручка_руб', 'итогорасходымп_руб',
-                'себестоимостьпродаж_руб', 'себестоимостьбезндс_руб'
-            ]
-            # Колонка "СебестоимостьНалог" может отсутствовать в старых файлах
-            has_tax_cogs = 'себестоимостьналог' in oz_idx
-            for col in need_oz:
-                if col not in oz_idx:
-                    raise ValueError(f'Колонка «{col}» отсутствует в {SHEET_OZON}')
-
-
-        for i, r in enumerate(oz_rows, 2):  # 2 — потому что range(1,1) = A1, а данные с 2-й строки
-            org = r[oz_idx['организация']]
-            raw_month = r[oz_idx['месяц']]
-            if not org or str(org).strip().lower() in ('итого', 'total'):
-                continue
-            month = parse_month(raw_month)
-            if month == 0 or not (1 <= month <= 12):
-                log_month(raw_month, src='Ozon', rownum=i, reason=f'игнорируется, результат parse_month={month}')
-                continue
-            log_month(raw_month, src='Ozon', rownum=i, reason=f'принят, результат parse_month={month}')
-            rows.append(dict(
-                org=org,
-                month=month,
-                rev=parse_money(r[oz_idx['выручка_руб']]),
-                mp=parse_money(r[oz_idx['итогорасходымп_руб']]),
-                cr=parse_money(r[oz_idx['себестоимостьпродаж_руб']]),
-                cn=parse_money(r[oz_idx['себестоимостьбезндс_руб']]),
-                ct=parse_money(r[oz_idx['себестоимостьналог']]) if has_tax_cogs else 0
-            ))
-
-
-        # === 4.4 Добавляем строки WB ====================================
-        has_tax_cogs_wb = 'себестоимостьналог' in wb_idx
-        for i, r in enumerate(wb_rows, 2):
-            org = r[wb_idx['организация']]
-            raw_month = r[wb_idx['месяц']]
-            if not org or str(org).strip().lower() in ('итого', 'total'):
-                continue
-            month = parse_month(raw_month)
-            if month == 0 or not (1 <= month <= 12):
-                log_month(raw_month, src='WB', rownum=i, reason=f'игнорируется, результат parse_month={month}')
-                continue
-            log_month(raw_month, src='WB', rownum=i, reason=f'принят, результат parse_month={month}')
-            rows.append(dict(
-                org=org, month=month,
-                rev=parse_money(r[wb_idx['выручка, ₽']]),
-                mp=parse_money(r[wb_idx['расходы мп, ₽']]),
-                cr=parse_money(r[wb_idx['себестоимостьпродажруб']]),
-                cn=parse_money(r[wb_idx['себестоимостьпродажбезндс']]),
-                ct=parse_money(r[wb_idx['себестоимостьналог']]) if has_tax_cogs_wb else 0
-            ))
+            rows += load_sales_data(
+                ss.sheets[SHEET_OZON],
+                'Ozon',
+                {
+                    'org': 'организация',
+                    'month': 'месяц',
+                    'rev': 'выручка_руб',
+                    'mp': 'итогорасходымп_руб',
+                    'cr': 'себестоимостьпродаж_руб',
+                    'cn': 'себестоимостьбезндс_руб',
+                    'ct': 'себестоимостьналог',
+                },
+                app=app,
+                optional=['себестоимостьналог'],
+            )
 
         if not rows:
             log_info('⚠️  Нет данных — выходим')
