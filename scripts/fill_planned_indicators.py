@@ -711,9 +711,6 @@ def fill_planned_indicators():
             ruble_idx = [headers.index(c) + 1 for c in ruble_cols]
             for i in ruble_idx:
                 lo.ListColumns(i).Range.NumberFormat = fmt
-            # ensure explicit format for the new tax COGS column
-            col_ct = headers.index('Себестоимость Налог, ₽') + 1
-            lo.DataBodyRange.Columns(col_ct).NumberFormat = '#,##0 ₽'
 
         finally:
             wb.app.calculation     = calc
@@ -729,12 +726,8 @@ def fill_planned_indicators():
         for idx, col in enumerate(headers, start=1):
             if col in ruble_cols:
                 letter = col_name(idx)
-                if col == 'Себестоимость Налог, ₽':
-                    sh.range(total_row, idx).formula = \
-                        "=SUBTOTAL(109,[Себестоимость Налог, ₽])"
-                else:
-                    sh.range(total_row, idx).formula = \
-                        f"=SUBTOTAL(109,{letter}$2:{letter}${last_row})"
+                sh.range(total_row, idx).formula = \
+                    f"=SUBTOTAL(109,{letter}$2:{letter}${last_row})"
                 sh.range(total_row, idx).number_format = fmt
 
 
