@@ -480,9 +480,10 @@ def fill_planned_indicators():
         cons_rows = [r for (k, m), rows in grouped.items() if k == 'consolidated' for r in rows if 1 <= r['m'] <= 12]
         if cons_rows:
             # Годовая проверка
-            total_income = sum(r['revN'] for r in cons_rows)
-            real_tax_sum = sum(round(max(r['ebit'], 0) * r['usn'] / 100) for r in cons_rows)
-            min_tax_sum = round(total_income * 0.01)
+            total_income  = sum(r['revN'] for r in cons_rows)
+            group_profit  = sum(r['ebit'] for r in cons_rows)
+            real_tax_sum  = round(max(group_profit, 0) * cons_rows[0]['usn'] / 100)
+            min_tax_sum   = round(total_income * 0.01)
             if real_tax_sum < min_tax_sum:
                 for r in cons_rows:
                     r['usn_forced_min'] = True
@@ -500,8 +501,9 @@ def fill_planned_indicators():
 
         for org, rows in org_groups.items():
             total_income = sum(r['revN'] for r in rows)
-            real_tax_sum = sum(round(max(r['ebit'], 0) * r['usn'] / 100) for r in rows)
-            min_tax_sum = round(total_income * 0.01)
+            group_profit = sum(r['ebit'] for r in rows)
+            real_tax_sum = round(max(group_profit, 0) * rows[0]['usn'] / 100)
+            min_tax_sum  = round(total_income * 0.01)
             if real_tax_sum < min_tax_sum:
                 for r in rows:
                     r['usn_forced_min'] = True
