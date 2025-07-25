@@ -190,10 +190,35 @@ def _calc_row(revN, mpNet, cost, fot, esn, oth, mode):
     cost_sales = cost
     ebit_mgmt = revN - (cost_sales + mpNet + fot + esn + oth)
     if mode == 'Доходы-Расходы':
-        ebit_tax = revN - (cost_sales + mpNet + fot + esn + oth_cost)
+        ebit_tax = revN - (cost_sales + fot + esn + oth)
     else:
         ebit_tax = ebit_mgmt
     return {'EBITDA, ₽': ebit_mgmt, 'EBITDA нал., ₽': ebit_tax}
+
+
+def _apply_consolidated_dr_tax(rows):
+    """Distribute USN "Доходы-Расходы" tax within consolidated rows."""
+    from collections import defaultdict
+
+    grouped = defaultdict(list)
+    for r in rows:
+        grouped[r['m']].append(r)
+
+    totals = {}
+    for m, items in grouped.items():
+        total_rev = sum(x['revN'] for x in items)
+        total_ebit = sum(x['ebit_tax'] for x in items)
+        rate = items[0]['usn'] / 100
+        real_tax = rate * total_ebit
+        min_tax = total_rev * 0.01
+        tax_sum = max(real_tax, min_tax)
+        forced_min = real_tax < min_tax
+        for r in items:
+            share = r['revN'] / total_rev if total_rev else 0
+            r['tax'] = round(tax_sum * share)
+            r['usn_forced_min'] = forced_min
+        totals[m] = total_ebit
+    return totals
 
 
 
@@ -209,7 +234,7 @@ def fill_planned_indicators():
         'Расх. MP без НДС, ₽',        # ← бывшая «Расх. MP, ₽»
         'ФОТ, ₽', 'ЕСН, ₽', 'Прочие, ₽', 'EBITDA, ₽',
         'EBITDA нал., ₽', 'EBITDA нал. накоп., ₽',
-        'EBITDA накоп., ₽', 'EBITDA сводно, ₽', 'Режим',
+        'EBITDA накоп., ₽', 'EBITDA сводно, ₽', 'EBITDA налог сводно, ₽', 'Режим',
         'Ставка УСН, %', 'Налог, ₽', 'Чистая прибыль, ₽',
     ]
 
@@ -581,34 +606,14 @@ def fill_planned_indicators():
 
         from collections import defaultdict
 
-        # --- 1A. группируем все строки режима Д-Р с консолидацией в один список
+        # --- 1A. Консолидация "Доходы-Расходы" по месяцам ---
         consolidated_dr = [
             r for r in out
             if r['mode'] == 'Доходы-Расходы'
             and org_cfg.get(r['org'], {}).get('consolidation', False)
         ]
 
-        if consolidated_dr:
-            # годовой доход – по-прежнему сумма всех доходов
-            total_income = sum(r['revN'] for r in consolidated_dr)
-
-            # берём ПОСЛЕДНЮЮ строку (max m) каждого ИП и суммируем их годовую
-            # накопительную прибыль cumE_tax
-            final_rows = {}
-            for r in consolidated_dr:
-                if 1 <= r['m'] <= 12 and r['m'] >= final_rows.get(r['org'], {'m': 0})['m']:
-                    final_rows[r['org']] = r
-            total_base = sum(max(fr['cumE_tax'], 0) for fr in final_rows.values())
-
-            rate = consolidated_dr[0]['usn'] / 100
-            real_tax_sum = round(total_base * rate)
-            min_tax_sum  = round(total_income * 0.01)
-
-            use_min = real_tax_sum < min_tax_sum
-            for r in consolidated_dr:
-                r['usn_forced_min'] = use_min
-                r['tax'] = round(r['revN'] * 0.01) if use_min \
-                           else round(max(r['tax_base'], 0) * r['usn'] / 100)
+        cons_e_tax = _apply_consolidated_dr_tax(consolidated_dr)
 
         # 3. Для остальных организаций – по отдельности (за год 1–12)
         org_groups = defaultdict(list)
@@ -650,6 +655,7 @@ def fill_planned_indicators():
                 r['deduction'] = round(deduction_total * share)
 
         ebit_m = acc(out, lambda x: x['m'], lambda x: x['ebit'])
+        ebit_tax_cons_m = cons_e_tax
         # накопление прибыли по ОСНО: ключ 'consolidated' при консолидированном
         # учёте, иначе название организации
         rows_out, cum_osno = [], {}
@@ -761,13 +767,15 @@ def fill_planned_indicators():
                 round(r['cumE']),
                 # 22  EBITDA сводно, ₽
                 round(ebit_m[r['m']]),
-                # 23  Режим
+                # 23  EBITDA налог сводно, ₽
+                round(ebit_tax_cons_m.get(r['m'], 0)),
+                # 24  Режим
                 r['mode'],
-                # 24  Ставка УСН, %
+                # 25  Ставка УСН, %
                 rate,
-                # 25  Налог, ₽
+                # 26  Налог, ₽
                 tax,
-                # 26  Чистая прибыль, ₽
+                # 27  Чистая прибыль, ₽
                 round(r['ebit_mgmt'] - tax)
             ])
 
