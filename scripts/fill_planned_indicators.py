@@ -587,9 +587,19 @@ def fill_planned_indicators():
         ]
 
         if consolidated_dr:
+            # годовой доход – по-прежнему сумма всех доходов
             total_income = sum(r['revN'] for r in consolidated_dr)
-            total_base   = sum(r['tax_base'] for r in consolidated_dr)
-            real_tax_sum = round(max(total_base, 0) * consolidated_dr[0]['usn'] / 100)
+
+            # берём ПОСЛЕДНЮЮ строку (max m) каждого ИП и суммируем их годовую
+            # накопительную прибыль cumE_tax
+            final_rows = {}
+            for r in consolidated_dr:
+                if 1 <= r['m'] <= 12 and r['m'] >= final_rows.get(r['org'], {'m': 0})['m']:
+                    final_rows[r['org']] = r
+            total_base = sum(max(fr['cumE_tax'], 0) for fr in final_rows.values())
+
+            rate = consolidated_dr[0]['usn'] / 100
+            real_tax_sum = round(total_base * rate)
             min_tax_sum  = round(total_income * 0.01)
 
             use_min = real_tax_sum < min_tax_sum
@@ -606,17 +616,18 @@ def fill_planned_indicators():
 
         for org, rows in org_groups.items():
             total_income = sum(r['revN'] for r in rows)
-            group_profit = sum(r['tax_base'] for r in rows)
-            real_tax_sum = round(max(group_profit, 0) * rows[0]['usn'] / 100)
+
+            # вместо суммы месячных tax_base берём cumE_tax последнего месяца
+            last_row = max(rows, key=lambda x: x['m'])
+            group_profit = max(last_row['cumE_tax'], 0)
+
+            real_tax_sum = round(group_profit * rows[0]['usn'] / 100)
             min_tax_sum  = round(total_income * 0.01)
-            if real_tax_sum < min_tax_sum:
-                for r in rows:
-                    r['usn_forced_min'] = True
-                    r['tax'] = round(r['revN'] * 0.01)
-            else:
-                for r in rows:
-                    r['usn_forced_min'] = False
-                    r['tax'] = round(max(r['tax_base'], 0) * r['usn'] / 100)
+            use_min = real_tax_sum < min_tax_sum
+            for r in rows:
+                r['usn_forced_min'] = use_min
+                r['tax'] = round(r['revN'] * 0.01) if use_min \
+                           else round(max(r['tax_base'], 0) * r['usn'] / 100)
 
         # ---- 3A. Консолидация "Доходы" с учётом взносов по группе -----
         cons_income = defaultdict(list)
