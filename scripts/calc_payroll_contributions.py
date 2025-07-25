@@ -11,8 +11,10 @@
 # Работает и из Excel-макроса (RunPython) и из терминала.
 
 # ---------- Пути --------------------------------------------------
-import os, sys, logging, xlwings as xw, pandas as pd
-from datetime import datetime
+import os
+import sys
+import logging
+import xlwings as xw
 import pandas as pd
 import datetime as dt
 import argparse
@@ -38,7 +40,7 @@ LOG_DIR     = os.path.join(PROJECT_DIR, 'log')
 
 os.makedirs(LOG_DIR, exist_ok=True)
 LOG_FILE = os.path.join(
-    LOG_DIR, f'calc_payroll_{datetime.now():%Y%m%d_%H%M%S}.log'
+    LOG_DIR, f'calc_payroll_{dt.datetime.now():%Y%m%d_%H%M%S}.log'
 )
 
 logging.basicConfig(
