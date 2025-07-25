@@ -31,6 +31,10 @@ def log_info(msg):
     print(msg)               # ✔️ выводит в терминал
     logging.info(msg)        # ✔️ записывает в log/fill_planned_indicators.log
 
+# По умолчанию подавляем сообщения о месяце. Включается CLI-флагом
+# ``-dm``/``--debug-month``.
+DEBUG_MONTH = False
+
 
 # ---------- 1. CLI --------------------------------------------------------
 def parse_args():
@@ -38,7 +42,11 @@ def parse_args():
                                 description='Пересчёт плановых показателей')
     p.add_argument('-f', '--file', default='excel/Finmodel.xlsm',
                    help='Имя Excel-книги (по умолчанию excel/Finmodel.xlsm)')
+    p.add_argument('-dm', '--debug-month', action='store_true',
+                   help='log every imported month')
     args, _ = p.parse_known_args()       # игнорируем лишние флаги xlwings
+    global DEBUG_MONTH
+    DEBUG_MONTH = args.debug_month
     return args
 ARGS = parse_args()
 
@@ -106,6 +114,8 @@ def parse_month(val):
 
 def log_month(*args, **kwargs):
     """Log month parsing results during data import."""
+    if not DEBUG_MONTH:      # ➜ молчим, если не debug-режим
+        return
     if not args and not kwargs:
         return
     val = args[0] if args else kwargs.get('val') or kwargs.get('value')
