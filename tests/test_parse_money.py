@@ -1,0 +1,8 @@
+from pathlib import Path
+import sys
+sys.path.append(str(Path(__file__).resolve().parents[1] / "scripts"))
+from fill_planned_indicators import parse_money
+
+
+def test_parse_money_comma():
+    assert parse_money("1,5") == 1.5

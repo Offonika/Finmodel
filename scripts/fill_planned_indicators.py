@@ -83,9 +83,10 @@ def open_wb():
 def parse_money(v):
     if v in (None, ''):
         return 0.0
+    s = str(v).replace(' ', '').replace('₽', '').replace(',', '.')
     s = ''.join(
         c
-        for c in str(v).replace(' ', '').replace('₽', '')
+        for c in s
         if c.isdigit() or c in '-.'
     )
     return float(s)
