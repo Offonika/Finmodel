@@ -186,11 +186,11 @@ def full_cogs(cn, nds):
     return cn * (1 + nds / 100)
 
 
-def _calc_row(revN, mpNet, cost_sales, cost_tax, fot, esn, oth, mode):
+def _calc_row(revN, mp_mgmt, mp_tax, cost_sales, cost_tax, fot, esn, oth, mode):
     """Calculate management and tax EBITDA for given inputs."""
-    ebit_mgmt = revN - (cost_sales + mpNet + fot + esn + oth)
+    ebit_mgmt = revN - (cost_sales + mp_mgmt + fot + esn + oth)
     if mode == 'Доходы-Расходы':
-        ebit_tax = revN - (cost_tax + fot + esn + oth)
+        ebit_tax = revN - (cost_tax + mp_tax + fot + esn + oth)
     else:
         ebit_tax = ebit_mgmt
     return {'EBITDA, ₽': ebit_mgmt, 'EBITDA нал., ₽': ebit_tax}
@@ -553,6 +553,7 @@ def fill_planned_indicators():
 
             mpGross = g['mp']
             mpNet   = mpGross / (1 + nds / 100)
+            mpTax   = mpGross if mode_eff == 'Доходы-Расходы' else mpNet
 
             key = (g['org'], g['month'])
             fot = fot_by_org.get(g['org'], 0)
@@ -574,7 +575,7 @@ def fill_planned_indicators():
             ebit_mgmt = revN - (cost_sales + mpNet + fot + esn + oth_cost)
             if mode_eff == 'Доходы-Расходы':
 
-                ebit_tax = revN - (cost_tax + fot + esn + oth_cost)
+                ebit_tax = revN - (cost_tax + mpTax + fot + esn + oth_cost)
 
             else:
                 ebit_tax = ebit_mgmt
