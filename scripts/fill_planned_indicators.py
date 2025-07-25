@@ -240,12 +240,15 @@ def fill_planned_indicators():
                 'себестоимостьпродаж_руб', 'себестоимостьбезндс_руб'
             ]
             # Колонки себестоимости по налоговому учёту могут отсутствовать
-            tax_col = find_key(oz_idx, 'СебестоимостьНалог') or \
-                      find_key(oz_idx, 'СебестоимостьПродажНалог')
+            tax_col_key = find_key(oz_idx, 'СебестоимостьНалог') or \
+                           find_key(oz_idx, 'СебестоимостьПродажНалог')
+            tax_col = oz_idx[tax_col_key] if tax_col_key is not None else None
             has_tax_cogs = tax_col is not None
 
-            tax_wo_col = (find_key(oz_idx, 'СебестоимостьНалогБезНДС') or
-                          find_key(oz_idx, 'СебестоимостьПродажНалогБезНДС'))
+            tax_wo_col_key = (find_key(oz_idx, 'СебестоимостьНалогБезНДС') or
+                               find_key(oz_idx, 'СебестоимостьПродажНалогБезНДС'))
+            tax_wo_col = (oz_idx[tax_wo_col_key]
+                           if tax_wo_col_key is not None else None)
             has_tax_cogs_wo = tax_wo_col is not None
             for col in need_oz:
                 if col not in oz_idx:
@@ -269,18 +272,21 @@ def fill_planned_indicators():
                 mp=parse_money(r[oz_idx['итогорасходымп_руб']]),
                 cr=parse_money(r[oz_idx['себестоимостьпродаж_руб']]),
                 cn=parse_money(r[oz_idx['себестоимостьбезндс_руб']]),
-                ct=parse_money(r[tax_col]) if tax_col else 0,
-                ct_wo=parse_money(r[tax_wo_col]) if tax_wo_col else 0
+                ct=parse_money(r[tax_col]) if tax_col is not None else 0,
+                ct_wo=parse_money(r[tax_wo_col]) if tax_wo_col is not None else 0
             ))
 
 
         # === 4.4 Добавляем строки WB ====================================
-        tax_col_wb = find_key(wb_idx, 'СебестоимостьНалог') or \
-                     find_key(wb_idx, 'СебестоимостьПродажНалог')
+        tax_col_wb_key = find_key(wb_idx, 'СебестоимостьНалог') or \
+                         find_key(wb_idx, 'СебестоимостьПродажНалог')
+        tax_col_wb = wb_idx[tax_col_wb_key] if tax_col_wb_key is not None else None
         has_tax_cogs_wb = tax_col_wb is not None
 
-        tax_wo_col_wb = (find_key(wb_idx, 'СебестоимостьНалогБезНДС') or
-                          find_key(wb_idx, 'СебестоимостьПродажНалогБезНДС'))
+        tax_wo_col_wb_key = (find_key(wb_idx, 'СебестоимостьНалогБезНДС') or
+                              find_key(wb_idx, 'СебестоимостьПродажНалогБезНДС'))
+        tax_wo_col_wb = (wb_idx[tax_wo_col_wb_key]
+                          if tax_wo_col_wb_key is not None else None)
         has_tax_cogs_wo_wb = tax_wo_col_wb is not None
         for i, r in enumerate(wb_rows, 2):
             org = r[wb_idx['организация']]
@@ -298,8 +304,8 @@ def fill_planned_indicators():
                 mp=parse_money(r[wb_idx['расходы мп, ₽']]),
                 cr=parse_money(r[wb_idx['себестоимостьпродажруб']]),
                 cn=parse_money(r[wb_idx['себестоимостьпродажбезндс']]),
-                ct=parse_money(r[tax_col_wb]) if tax_col_wb else 0,
-                ct_wo=parse_money(r[tax_wo_col_wb]) if tax_wo_col_wb else 0
+                ct=parse_money(r[tax_col_wb]) if tax_col_wb is not None else 0,
+                ct_wo=parse_money(r[tax_wo_col_wb]) if tax_wo_col_wb is not None else 0
             ))
 
         if not rows:
