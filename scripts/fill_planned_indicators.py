@@ -206,7 +206,6 @@ def fill_planned_indicators():
         'EBITDA нал., ₽', 'EBITDA нал. накоп., ₽',
         'EBITDA накоп., ₽', 'EBITDA сводно, ₽', 'Режим',
         'Ставка УСН, %', 'Налог, ₽', 'Чистая прибыль, ₽',
-        'ЧистаяПрибыль Налог, ₽'
     ]
 
     ruble_cols = [h for h in headers if '₽' in h or h.startswith('Себестоимость')]
@@ -744,9 +743,7 @@ def fill_planned_indicators():
                 # 25  Налог, ₽
                 tax,
                 # 26  Чистая прибыль, ₽
-                round(r['ebit_mgmt'] - tax),
-                # 27  ЧистаяПрибыль Налог, ₽
-                round(r['ebit_tax'] - tax)
+                round(r['ebit_mgmt'] - tax)
             ])
 
 
