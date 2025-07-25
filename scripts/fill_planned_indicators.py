@@ -180,6 +180,11 @@ def log_nds(month, org, prev, curr, mode, rate, lvl):
     log_info(msg)
 
 
+def full_cogs(cn, nds):
+    """Return cost including non-refundable VAT for reduced rates."""
+    return cn * (1 + nds / 100)
+
+
 def _calc_row(revN, mpNet, cost, fot, esn, oth, mode):
     """Calculate management and tax EBITDA for given inputs."""
     cost_sales = cost
@@ -522,7 +527,7 @@ def fill_planned_indicators():
             nds_sum = g['rev'] - revN
 
             mpGross = g['mp']
-            mpNet   = mpGross / 1.2
+            mpNet   = mpGross / (1 + nds / 100)
 
             key = (g['org'], g['month'])
             fot = fot_by_org.get(g['org'], 0)
@@ -531,8 +536,15 @@ def fill_planned_indicators():
 
             oth_cost = other.get(g['org'], 0)
 
-            cost_sales = g.get('ct', g['cn'])
-            cost_tax = cost_sales
+            if round(nds) in (5, 7):
+                cost_base = full_cogs(g['cn'], nds)
+            elif round(nds) == 20:
+                cost_base = g['cn']
+            else:
+                cost_base = g['cr']
+
+            cost_sales = cost_base
+            cost_tax = g.get('ct', full_cogs(g['cn'], nds) if round(nds) in (5, 7) else g['cn'])
             cost_tax_wo = g.get('ct_wo', g['cn'])
             ebit_mgmt = revN - (cost_sales + mpNet + fot + esn + oth_cost)
             if mode_eff == 'Доходы-Расходы':

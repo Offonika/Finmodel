@@ -400,7 +400,6 @@ def compute_wb_economics_df(plan_df: pd.DataFrame, cost_df: pd.DataFrame) -> pd.
                         "EBITDA_Упр, ₽": revenue - commission - cogs,
                         "EBITDA_Налог, ₽": ebit_tax,
                         "ЧистаяПрибыль_Упр, ₽": revenue - commission - cogs,
-                        "ЧистаяПрибыль_Налог, ₽": ebit_tax,
                     },
                 )
             )
