@@ -177,8 +177,8 @@ def fill_planned_indicators():
     headers = [
         'Организация', 'Месяц', 'Выручка, ₽', 'Выручка накоп., ₽',
         'Выручка сводно, ₽', 'Выручка без НДС, ₽', 'НДС, ₽',
-        'Ставка НДС, %', 'Себестоимость руб', 'Себестоимость Налог, ₽',
-        'СебестоимостьНалог без НДС, ₽', 'Себестоимость без НДС',
+        'Ставка НДС, %', 'Себестоимость руб', 'Себестоимость без НДС',
+        'Себестоимость Налог, ₽', 'Себестоимость Налог без НДС, ₽',
         'Расх. MP с НДС, ₽',          # ← новая колонка (брутто)
         'Расх. MP без НДС, ₽',        # ← бывшая «Расх. MP, ₽»
         'ФОТ, ₽', 'ЕСН, ₽', 'Прочие, ₽', 'EBITDA, ₽',
@@ -240,16 +240,24 @@ def fill_planned_indicators():
                 'себестоимостьпродаж_руб', 'себестоимостьбезндс_руб'
             ]
             # Колонки себестоимости по налоговому учёту могут отсутствовать
-            tax_col_key = find_key(oz_idx, 'СебестоимостьНалог') or \
-                           find_key(oz_idx, 'СебестоимостьПродажНалог')
-            tax_col = oz_idx[tax_col_key] if tax_col_key is not None else None
-            has_tax_cogs = tax_col is not None
+            tax_col_candidates = [
+                'СебестоимостьПродажНалог, ₽',
+                'СебестоимостьНалог_руб',
+            ]
+            tax_col_oz = None
+            for cand in tax_col_candidates:
+                key = find_key(oz_idx, cand)
+                if key is not None:
+                    tax_col_oz = oz_idx[key]
+                    break
 
-            tax_wo_col_key = (find_key(oz_idx, 'СебестоимостьНалогБезНДС') or
-                               find_key(oz_idx, 'СебестоимостьПродажНалогБезНДС'))
-            tax_wo_col = (oz_idx[tax_wo_col_key]
-                           if tax_wo_col_key is not None else None)
-            has_tax_cogs_wo = tax_wo_col is not None
+            tax_nds_col_oz = None
+            key = find_key(oz_idx, 'СебестоимостьПродажНалог_без_НДС, ₽')
+            if key is not None:
+                tax_nds_col_oz = oz_idx[key]
+
+            has_tax_cogs = tax_col_oz is not None
+            has_tax_cogs_wo = tax_nds_col_oz is not None
             for col in need_oz:
                 if col not in oz_idx:
                     raise ValueError(f'Колонка «{col}» отсутствует в {SHEET_OZON}')
@@ -272,8 +280,8 @@ def fill_planned_indicators():
                 mp=parse_money(r[oz_idx['итогорасходымп_руб']]),
                 cr=parse_money(r[oz_idx['себестоимостьпродаж_руб']]),
                 cn=parse_money(r[oz_idx['себестоимостьбезндс_руб']]),
-                ct=parse_money(r[tax_col]) if tax_col is not None else 0,
-                ct_wo=parse_money(r[tax_wo_col]) if tax_wo_col is not None else 0
+                ct=parse_money(r[tax_col_oz]) if tax_col_oz is not None else 0,
+                ct_wo=parse_money(r[tax_nds_col_oz]) if tax_nds_col_oz is not None else 0
             ))
 
 
@@ -672,12 +680,12 @@ def fill_planned_indicators():
                 f"{round(r['nds'])}%",
                 #  9  Себестоимость руб
                 round(r['cr']),
-                # 10  Себестоимость Налог, ₽
-                round(r['ct']),
-                # 11  СебестоимостьНалог без НДС, ₽
-                round(r['ct_wo']),
-                # 12  Себестоимость без НДС
+                # 10  Себестоимость без НДС
                 round(r['cn']),
+                # 11  Себестоимость Налог, ₽
+                round(r['ct']),
+                # 12  Себестоимость Налог без НДС, ₽
+                round(r['ct_wo']),
                 # 13  Расх. MP с НДС, ₽   (брутто)
                 round(r['mpGross']),
                 # 14  Расх. MP без НДС, ₽ (нетто)
