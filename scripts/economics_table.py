@@ -140,7 +140,7 @@ def _add_totals_row(ws_target, df: pd.DataFrame) -> None:
             continue
         letter = col_name(idx)
         if col_name_hdr == "СебестоимостьПродажНалог, ₽":
-            formula = "=SUBTOTAL(109,[СебестоимостьПродажНалог, ₽])"
+            formula = f"=SUBTOTAL(109,{letter}2:{letter}{last_row})"
         else:
             formula = f"=SUBTOTAL(9,{letter}2:{letter}{last_row})"
         cell = ws_target.range((total_row, idx))
