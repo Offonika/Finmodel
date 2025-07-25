@@ -170,6 +170,17 @@ def log_nds(month, org, prev, curr, mode, rate, lvl):
     log_info(msg)
 
 
+def _calc_row(revN, mpNet, cost, fot, esn, oth, mode):
+    """Calculate management and tax EBITDA for given inputs."""
+    cost_sales = cost
+    ebit_mgmt = revN - (cost_sales + mpNet + fot + esn + oth)
+    if mode == 'Доходы-Расходы':
+        ebit_tax = revN - (cost_sales + fot + esn + oth)
+    else:
+        ebit_tax = ebit_mgmt
+    return {'EBITDA, ₽': ebit_mgmt, 'EBITDA нал., ₽': ebit_tax}
+
+
 
 
 # ---------- 4. Главная функция --------------------------------------------
@@ -182,6 +193,7 @@ def fill_planned_indicators():
         'Расх. MP с НДС, ₽',          # ← новая колонка (брутто)
         'Расх. MP без НДС, ₽',        # ← бывшая «Расх. MP, ₽»
         'ФОТ, ₽', 'ЕСН, ₽', 'Прочие, ₽', 'EBITDA, ₽',
+        'EBITDA нал., ₽', 'EBITDA нал. накоп., ₽',
         'EBITDA накоп., ₽', 'EBITDA сводно, ₽', 'Режим',
         'Ставка УСН, %', 'Налог, ₽', 'Чистая прибыль, ₽',
         'ЧистаяПрибыль Налог, ₽'
@@ -256,8 +268,8 @@ def fill_planned_indicators():
             if key is not None:
                 tax_nds_col_oz = oz_idx[key]
 
-            has_tax_cogs = tax_col_oz is not None
-            has_tax_cogs_wo = tax_nds_col_oz is not None
+            _has_tax_cogs = tax_col_oz is not None
+            _has_tax_cogs_wo = tax_nds_col_oz is not None
             for col in need_oz:
                 if col not in oz_idx:
                     raise ValueError(f'Колонка «{col}» отсутствует в {SHEET_OZON}')
@@ -289,13 +301,13 @@ def fill_planned_indicators():
         tax_col_wb_key = find_key(wb_idx, 'СебестоимостьНалог') or \
                          find_key(wb_idx, 'СебестоимостьПродажНалог')
         tax_col_wb = wb_idx[tax_col_wb_key] if tax_col_wb_key is not None else None
-        has_tax_cogs_wb = tax_col_wb is not None
+        _has_tax_cogs_wb = tax_col_wb is not None
 
         tax_wo_col_wb_key = (find_key(wb_idx, 'СебестоимостьНалогБезНДС') or
                               find_key(wb_idx, 'СебестоимостьПродажНалогБезНДС'))
         tax_wo_col_wb = (wb_idx[tax_wo_col_wb_key]
                           if tax_wo_col_wb_key is not None else None)
-        has_tax_cogs_wo_wb = tax_wo_col_wb is not None
+        _has_tax_cogs_wo_wb = tax_wo_col_wb is not None
         for i, r in enumerate(wb_rows, 2):
             org = r[wb_idx['организация']]
             raw_month = r[wb_idx['месяц']]
@@ -454,7 +466,7 @@ def fill_planned_indicators():
 
         # === 4.8 Основной расчёт =======================================
 
-        p_rev, p_ebit, p_net, last_mode = {}, {}, {}, {}
+        p_rev, p_ebit, p_ebit_tax, p_net, last_mode = {}, {}, {}, {}, {}
         out = []
         usn_revoked_month = {}
         for g in records:
@@ -510,26 +522,35 @@ def fill_planned_indicators():
 
             oth_cost = other.get(g['org'], 0)
 
-            cost_base = g['cn'] if round(nds) == 20 else g['cr']
-            cost_tax  = g.get('ct', g['cn'] if round(nds) == 20 else g['cr'])
+            cost_sales = g.get('ct', g['cn'])
+            cost_tax = cost_sales
             cost_tax_wo = g.get('ct_wo', g['cn'])
-            ebit = revN - (cost_base + mpNet + fot + esn + oth_cost)
-            ebit_tax = g['rev'] - (cost_tax + mpGross + fot + esn + oth_cost)
+            ebit_mgmt = revN - (cost_sales + mpNet + fot + esn + oth_cost)
+            if mode_eff == 'Доходы-Расходы':
+                ebit_tax = revN - (cost_sales + fot + esn + oth_cost)
+            else:
+                ebit_tax = ebit_mgmt
             usn_base = ebit_tax
 
             # --- аккумулируем ---
-            p_rev[g['org']]  = p_rev.get(g['org'], 0) + g['rev']
-            p_ebit[g['org']] = p_ebit.get(g['org'], 0) + ebit
-            p_net[g['org']]  = p_net.get(g['org'], 0) + revN
+            p_rev[g['org']] = p_rev.get(g['org'], 0) + g['rev']
+            p_ebit[g['org']] = p_ebit.get(g['org'], 0) + ebit_mgmt
+            p_ebit_tax[g['org']] = p_ebit_tax.get(g['org'], 0) + ebit_tax
+            p_net[g['org']] = p_net.get(g['org'], 0) + revN
 
             out.append(dict(
                 org=g['org'], m=g['month'], rev=g['rev'], cumG=gross,
                 revN=revN, ndsSum=nds_sum, nds=nds,
                 cr=g['cr'], cn=g['cn'], ct=cost_tax, ct_wo=cost_tax_wo,
                 mpGross=mpGross, mpNet=mpNet,
-                fot=fot, esn=esn, oth=oth_cost, ebit=ebit, ebit_tax=ebit_tax,
+                fot=fot, esn=esn, oth=oth_cost,
+                ebit=ebit_mgmt,
+                ebit_mgmt=ebit_mgmt,
+                ebit_tax=ebit_tax,
                 tax_base=usn_base,
-                cumN=p_net[g['org']], cumE=p_ebit[g['org']],
+                cumN=p_net[g['org']],
+                cumE=p_ebit[g['org']],
+                cumE_tax=p_ebit_tax[g['org']],
                 mode=mode_eff, type=cfg['type'], prevM=last_mode.get(g['org']),
                 usn=cfg['usn_rate'])
             )
@@ -641,7 +662,7 @@ def fill_planned_indicators():
                     # --- ключ для накопления прибыли/убытка ---
                     # --- накопление полного EБIT (включая убытки) ---
                     prev = cum_osno.get(group_key, 0)
-                    base = r['ebit']
+                    base = r['ebit_tax']
                     cum = prev + base
 
                     taxable_prev = max(prev, 0)
@@ -658,7 +679,7 @@ def fill_planned_indicators():
                     )
                 else:
                     # Для юр. лиц ставка фиксированная, без накопления
-                    base = max(r['ebit'], 0)
+                    base = max(r['ebit_tax'], 0)
                     tax = round(base * 0.25)
                     rate = '25%'
             rows_out.append([
@@ -697,20 +718,24 @@ def fill_planned_indicators():
                 # 17  Прочие, ₽
                 round(r['oth']),
                 # 18  EBITDA, ₽
-                round(r['ebit']),
-                # 19  EBITDA накоп., ₽
+                round(r['ebit_mgmt']),
+                # 19  EBITDA нал., ₽
+                round(r['ebit_tax']),
+                # 20  EBITDA нал. накоп., ₽
+                round(r['cumE_tax']),
+                # 21  EBITDA накоп., ₽
                 round(r['cumE']),
-                # 20  EBITDA сводно, ₽
+                # 22  EBITDA сводно, ₽
                 round(ebit_m[r['m']]),
-                # 21  Режим
+                # 23  Режим
                 r['mode'],
-                # 22  Ставка УСН, %
+                # 24  Ставка УСН, %
                 rate,
-                # 23  Налог, ₽
+                # 25  Налог, ₽
                 tax,
-                # 24  Чистая прибыль, ₽
-                round(r['ebit'] - tax),
-                # 25  ЧистаяПрибыль Налог, ₽
+                # 26  Чистая прибыль, ₽
+                round(r['ebit_mgmt'] - tax),
+                # 27  ЧистаяПрибыль Налог, ₽
                 round(r['ebit_tax'] - tax)
             ])
 
