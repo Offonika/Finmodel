@@ -190,7 +190,7 @@ def _calc_row(revN, mpNet, cost, fot, esn, oth, mode):
     cost_sales = cost
     ebit_mgmt = revN - (cost_sales + mpNet + fot + esn + oth)
     if mode == 'Доходы-Расходы':
-        ebit_tax = revN - (cost_sales + fot + esn + oth)
+        ebit_tax = revN - (cost_sales + mpNet + fot + esn + oth_cost)
     else:
         ebit_tax = ebit_mgmt
     return {'EBITDA, ₽': ebit_mgmt, 'EBITDA нал., ₽': ebit_tax}
@@ -548,7 +548,9 @@ def fill_planned_indicators():
             cost_tax_wo = g.get('ct_wo', g['cn'])
             ebit_mgmt = revN - (cost_sales + mpNet + fot + esn + oth_cost)
             if mode_eff == 'Доходы-Расходы':
-                ebit_tax = revN - (cost_sales + fot + esn + oth_cost)
+                
+                ebit_tax = revN - (cost_sales + mpNet + fot + esn + oth_cost)
+
             else:
                 ebit_tax = ebit_mgmt
             usn_base = ebit_tax
