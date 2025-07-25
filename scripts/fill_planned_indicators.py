@@ -186,14 +186,14 @@ def full_cogs(cn, nds):
     return cn * (1 + nds / 100)
 
 
-def _calc_row(revN, mpNet, cost_sales, cost_tax, fot, esn, oth, mode):
+def _calc_row(revN, mpNet, cost_sales, cost_tax, fot, esn, oth, mode, mpGross=0):
     """Calculate management and tax EBITDA for given inputs."""
     ebit_mgmt = revN - (cost_sales + mpNet + fot + esn + oth)
     if mode == 'Доходы-Расходы':
-        ebit_tax = revN - (cost_tax + fot + esn + oth)
+        ebit_tax = revN - (cost_tax + mpGross + fot + esn + oth)
     else:
         ebit_tax = ebit_mgmt
-    return {'EBITDA, ₽': ebit_mgmt, 'EBITDA нал., ₽': ebit_tax}
+    return {'EBITDA, ₽': ebit_mgmt, 'Расчет_базы_налога': ebit_tax}
 
 
 def _apply_consolidated_dr_tax(rows):
@@ -233,7 +233,7 @@ def fill_planned_indicators():
         'Расх. MP с НДС, ₽',          # ← новая колонка (брутто)
         'Расх. MP без НДС, ₽',        # ← бывшая «Расх. MP, ₽»
         'ФОТ, ₽', 'ЕСН, ₽', 'Прочие, ₽', 'EBITDA, ₽',
-        'EBITDA нал., ₽', 'EBITDA нал. накоп., ₽',
+        'Расчет_базы_налога', 'EBITDA нал. накоп., ₽',
         'EBITDA накоп., ₽', 'EBITDA сводно, ₽', 'EBITDA налог сводно, ₽', 'Режим',
         'Ставка УСН, %', 'Налог, ₽', 'Чистая прибыль, ₽',
     ]
@@ -574,7 +574,7 @@ def fill_planned_indicators():
             ebit_mgmt = revN - (cost_sales + mpNet + fot + esn + oth_cost)
             if mode_eff == 'Доходы-Расходы':
 
-                ebit_tax = revN - (cost_tax + fot + esn + oth_cost)
+                ebit_tax = revN - (cost_tax + mpGross + fot + esn + oth_cost)
 
             else:
                 ebit_tax = ebit_mgmt
@@ -759,7 +759,7 @@ def fill_planned_indicators():
                 round(r['oth']),
                 # 18  EBITDA, ₽
                 round(r['ebit_mgmt']),
-                # 19  EBITDA нал., ₽
+                # 19  Расчет_базы_налога
                 round(r['ebit_tax']),
                 # 20  EBITDA нал. накоп., ₽
                 round(r['cumE_tax']),

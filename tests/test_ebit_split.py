@@ -4,7 +4,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1] / 'scripts'))
 from fill_planned_indicators import _calc_row
 
 
-def test_mp_excluded_from_tax_and_cogs_with_vat():
+def test_mp_excluded_from_mgmt_but_tax_with_gross():
     row = _calc_row(
         revN=1000,
         mpNet=200,
@@ -13,7 +13,8 @@ def test_mp_excluded_from_tax_and_cogs_with_vat():
         fot=0,
         esn=0,
         oth=0,
-        mode='Доходы-Расходы'
+        mode='Доходы-Расходы',
+        mpGross=240,
     )
     assert row['EBITDA, ₽'] == 500
-    assert row['EBITDA нал., ₽'] == 640
+    assert row['Расчет_базы_налога'] == 400
