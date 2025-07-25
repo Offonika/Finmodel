@@ -127,8 +127,17 @@ def acc(iterable, kfn, vfn):
     return d
 
 def find_key(idx, target):
-    """Return column name from idx matching target ignoring spaces and underscores."""
-    norm = lambda s: str(s).lower().replace(' ', '').replace('_', '')
+    """Return key from ``idx`` that matches ``target`` ignoring spaces,
+    underscores and punctuation.
+
+    Both ``idx`` keys and ``target`` may contain characters like commas or the
+    currency sign ``₽`` which should be ignored when searching.  The function
+    returns the original key from ``idx`` if a normalized match is found.
+    """
+
+    def norm(text):
+        return ''.join(c for c in str(text).lower() if c.isalnum())
+
     target_norm = norm(target)
     for k in idx:
         if norm(k) == target_norm:
@@ -231,8 +240,12 @@ def fill_planned_indicators():
                 'себестоимостьпродаж_руб', 'себестоимостьбезндс_руб'
             ]
             # Колонки себестоимости по налоговому учёту могут отсутствовать
-            has_tax_cogs = 'себестоимостьналог' in oz_idx
-            tax_wo_col = find_key(oz_idx, 'себестоимостьналогбезндс')
+            tax_col = find_key(oz_idx, 'СебестоимостьНалог') or \
+                      find_key(oz_idx, 'СебестоимостьПродажНалог')
+            has_tax_cogs = tax_col is not None
+
+            tax_wo_col = (find_key(oz_idx, 'СебестоимостьНалогБезНДС') or
+                          find_key(oz_idx, 'СебестоимостьПродажНалогБезНДС'))
             has_tax_cogs_wo = tax_wo_col is not None
             for col in need_oz:
                 if col not in oz_idx:
@@ -256,14 +269,18 @@ def fill_planned_indicators():
                 mp=parse_money(r[oz_idx['итогорасходымп_руб']]),
                 cr=parse_money(r[oz_idx['себестоимостьпродаж_руб']]),
                 cn=parse_money(r[oz_idx['себестоимостьбезндс_руб']]),
-                ct=parse_money(r[oz_idx['себестоимостьналог']]) if has_tax_cogs else 0,
-                ct_wo=parse_money(r[tax_wo_col]) if has_tax_cogs_wo else 0
+                ct=parse_money(r[tax_col]) if tax_col else 0,
+                ct_wo=parse_money(r[tax_wo_col]) if tax_wo_col else 0
             ))
 
 
         # === 4.4 Добавляем строки WB ====================================
-        has_tax_cogs_wb = 'себестоимостьналог' in wb_idx
-        tax_wo_col_wb = find_key(wb_idx, 'себестоимостьналогбезндс')
+        tax_col_wb = find_key(wb_idx, 'СебестоимостьНалог') or \
+                     find_key(wb_idx, 'СебестоимостьПродажНалог')
+        has_tax_cogs_wb = tax_col_wb is not None
+
+        tax_wo_col_wb = (find_key(wb_idx, 'СебестоимостьНалогБезНДС') or
+                          find_key(wb_idx, 'СебестоимостьПродажНалогБезНДС'))
         has_tax_cogs_wo_wb = tax_wo_col_wb is not None
         for i, r in enumerate(wb_rows, 2):
             org = r[wb_idx['организация']]
@@ -281,8 +298,8 @@ def fill_planned_indicators():
                 mp=parse_money(r[wb_idx['расходы мп, ₽']]),
                 cr=parse_money(r[wb_idx['себестоимостьпродажруб']]),
                 cn=parse_money(r[wb_idx['себестоимостьпродажбезндс']]),
-                ct=parse_money(r[wb_idx['себестоимостьналог']]) if has_tax_cogs_wb else 0,
-                ct_wo=parse_money(r[tax_wo_col_wb]) if has_tax_cogs_wo_wb else 0
+                ct=parse_money(r[tax_col_wb]) if tax_col_wb else 0,
+                ct_wo=parse_money(r[tax_wo_col_wb]) if tax_wo_col_wb else 0
             ))
 
         if not rows:
