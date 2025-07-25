@@ -186,12 +186,11 @@ def full_cogs(cn, nds):
     return cn * (1 + nds / 100)
 
 
-def _calc_row(revN, mpNet, cost, fot, esn, oth, mode):
+def _calc_row(revN, mpNet, cost_sales, cost_tax, fot, esn, oth, mode):
     """Calculate management and tax EBITDA for given inputs."""
-    cost_sales = cost
     ebit_mgmt = revN - (cost_sales + mpNet + fot + esn + oth)
     if mode == 'Доходы-Расходы':
-        ebit_tax = revN - (cost_sales + fot + esn + oth)
+        ebit_tax = revN - (cost_tax + fot + esn + oth)
     else:
         ebit_tax = ebit_mgmt
     return {'EBITDA, ₽': ebit_mgmt, 'EBITDA нал., ₽': ebit_tax}
@@ -570,12 +569,12 @@ def fill_planned_indicators():
                 cost_base = g['cr']
 
             cost_sales = cost_base
-            cost_tax = g.get('ct', full_cogs(g['cn'], nds) if round(nds) in (5, 7) else g['cn'])
+            cost_tax = g.get('ct', full_cogs(g['cn'], nds))
             cost_tax_wo = g.get('ct_wo', g['cn'])
             ebit_mgmt = revN - (cost_sales + mpNet + fot + esn + oth_cost)
             if mode_eff == 'Доходы-Расходы':
-                
-                ebit_tax = revN - (cost_sales + mpNet + fot + esn + oth_cost)
+
+                ebit_tax = revN - (cost_tax + fot + esn + oth_cost)
 
             else:
                 ebit_tax = ebit_mgmt
