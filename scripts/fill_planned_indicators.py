@@ -799,8 +799,11 @@ def fill_planned_indicators():
                 round(r['cumE']),
                 # 23  EBITDA сводно, ₽
                 round(ebit_m[r['m']]),
+
                 # 24  РасчетБазыНалогаНакопКонсол
                 round(tax_base_cons_cum.get(r['m'], 0)),
+
+
                 # 25  Режим
                 r['mode'],
                 # 26  Ставка УСН, %
