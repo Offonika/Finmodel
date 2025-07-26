@@ -256,7 +256,12 @@ def fill_planned_indicators():
         'Ставка УСН, %', 'Налог, ₽', 'Чистая прибыль, ₽',
     ]
 
-    ruble_cols = [h for h in headers if '₽' in h or h.startswith('Себестоимость')]
+    ruble_cols = [
+        h for h in headers
+        if '₽' in h
+        or h.startswith('Себестоимость')
+        or h in ('Расчет_базы_налога', 'РасчетБазыНалогаНакопКонсол')
+    ]
 
     wb = app = None
     try:
