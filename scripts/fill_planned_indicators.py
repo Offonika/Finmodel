@@ -598,8 +598,12 @@ def fill_planned_indicators():
             cost_tax_wo = g.get('ct_wo', g['cn'])
             ebit_mgmt = revN - (cost_sales + mpNet + fot + esn + oth_cost)
             if mode_eff == 'Доходы-Расходы':
-
                 ebit_tax = revN - (cost_tax + mpGross + oklad_of + esn + oth_cost)
+                log_info(
+                    f"[BASE] {g['org']} | m={g['month']:>02} | revN={revN:,.2f} - "
+                    f"ct={cost_tax:,.2f} - mp={mpGross:,.2f} - of={oklad_of:,.2f} - "
+                    f"esn={esn:,.2f} - oth={oth_cost:,.2f} = {ebit_tax:,.2f}"
+                )
 
             else:
                 ebit_tax = ebit_mgmt
@@ -714,7 +718,10 @@ def fill_planned_indicators():
                     base = max(r.get('tax_base', 0), 0)
                     tax = round(base * r['usn'] / 100)
                     rate = f"{(tax / base * 100):.2f}%" if base else '0%'
-                log_info(f"[TAX] {r['org']} | Доходы-Расходы | tax={tax} | rate={rate}")
+                log_info(
+                    f"[TAX] {r['org']} | Доходы-Расходы | base={base:,.2f} "
+                    f"| tax={tax} | rate={rate}"
+                )
                     
 
             else:  # ОСНО
