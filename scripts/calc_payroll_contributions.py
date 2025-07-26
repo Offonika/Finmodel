@@ -335,7 +335,8 @@ def calc_row(row, params, benedict):
     reserve_esv = reserve_pay * eff_rate
     # 4.4 Итоги
     total_vznosy   = esv + nsipz + reserve_esv
-    total_payroll  = sal_off + sal_gray + reserve_pay + total_vznosy
+    # ФОТ рассчитывается без учёта резерва и взносов
+    total_payroll  = sal_off + sal_gray
     share_official = sal_off / (sal_off + sal_gray) if (sal_off+sal_gray) else 0
 
     # ------- DEBUG: детальная расшифровка -------
