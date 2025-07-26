@@ -2,7 +2,7 @@ from pathlib import Path
 import sys
 
 sys.path.append(str(Path(__file__).resolve().parents[1] / 'scripts'))
-from fill_planned_indicators import ndfl_prog
+from fill_planned_indicators import ndfl_prog, consolidate_osno_tax
 
 
 def calc_osno_tax(rows, consolidate=False):
@@ -46,3 +46,31 @@ def test_individual_base_when_not_consolidated():
     assert res[0]['base'] == 100
     assert res[1]['base'] == 200
     assert res[0]['cons_base'] is None
+
+
+def test_tax_shown_only_once_in_consolidation():
+    rows_out = []
+    row_meta = []
+
+    def make_row(org, ebit, tax):
+        row = [0] * 30
+        row[0] = org
+        row[1] = 1
+        row[18] = ebit
+        row[26] = 'ОСНО'
+        row[28] = tax
+        row[29] = ebit - tax
+        return row
+
+    rows_out.append(make_row('A', 100, 13))
+    rows_out.append(make_row('B', 200, 26))
+
+    row_meta.append({'org': 'A', 'm': 1, 'mode': 'ОСНО', 'type': 'ИП', 'consolidation': True})
+    row_meta.append({'org': 'B', 'm': 1, 'mode': 'ОСНО', 'type': 'ИП', 'consolidation': True})
+
+    consolidate_osno_tax(rows_out, row_meta)
+
+    assert rows_out[0][28] == 39
+    assert rows_out[1][28] == 0
+    assert rows_out[0][29] == 61
+    assert rows_out[1][29] == 200
