@@ -735,6 +735,22 @@ def fill_planned_indicators():
         for m in months:
             run += cons_e_tax.get(m, 0)
             tax_base_cons_cum[m] = run
+
+        osno_cons_month = acc(
+            (
+                r
+                for r in out
+                if r['mode'] == 'ОСНО'
+                and org_cfg.get(r['org'], {}).get('consolidation', False)
+            ),
+            lambda x: x['m'],
+            lambda x: x['ebit_tax'],
+        )
+        osno_cons_cum = {}
+        run = 0
+        for m in months:
+            run += osno_cons_month.get(m, 0)
+            osno_cons_cum[m] = run
         # накопление прибыли по ОСНО: ключ 'consolidated' при консолидированном
         # учёте, иначе название организации
         rows_out, row_meta, cum_osno = [], [], {}
@@ -815,7 +831,7 @@ def fill_planned_indicators():
                     cum_osno[group_key] = cum
                     osno_cum = cum_osno[group_key]
                     osno_cum_cons = (
-                        cum_osno.get('consolidated')
+                        osno_cons_cum.get(r['m'], 0)
                         if org_cfg.get(r['org'], {}).get('consolidation', False)
                         else ''
                     )
@@ -845,7 +861,7 @@ def fill_planned_indicators():
                     )
                     osno_cum = cum_osno.get(group_key, 0)
                     osno_cum_cons = (
-                        cum_osno.get('consolidated')
+                        osno_cons_cum.get(r['m'], 0)
                         if org_cfg.get(r['org'], {}).get('consolidation', False)
                         else ''
                     )
