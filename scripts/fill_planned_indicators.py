@@ -1,6 +1,6 @@
 # fill_planned_indicators.py
 # -------------------------------------------------------------------
-# Пересчёт плановых показателей и налогов  (v1.7 — 05-06-2025)
+# Пересчёт плановых показателей и налогов  (v1.8 — 26-07-2025)
 # -------------------------------------------------------------------
 # • Лист «РасчетПлановыхПоказателей» = 3-й, ярлык зелёный
 # • Умная таблица PlannedIndicatorsTbl, стиль TableStyleMedium7
@@ -9,6 +9,9 @@
 # • Оптимизированы COM-вызовы: экран/события/калькуляция Off во
 #   время тяжёлых операций — «виснуть» больше не будет
 # -------------------------------------------------------------------
+# CHANGELOG
+# v1.8 — 26-07-2025: фикс расчёта налога при отрицательной
+#                     консолидированной базе после перехода на ОСНО
 
 import os
 import argparse
@@ -772,17 +775,26 @@ def fill_planned_indicators():
 
                     taxable_prev = max(prev, 0)
                     taxable_cum = max(cum, 0)
-                    tax = max(0, round(ndfl_prog(taxable_cum) -
-                                       ndfl_prog(taxable_prev)))
+                    tax = max(0, round(
+                        ndfl_prog(taxable_cum) - ndfl_prog(taxable_prev)
+                    ))
 
                     cum_osno[group_key] = cum
                     osno_cum = cum_osno[group_key]
 
-                    rate = f"{(tax / max(base, 1) * 100):.2f}%" if base > 0 else '0%'
-
-                    log_info(
-                        f"[TAX] {r['org']} | ОСНО | group={group_key} | prev={prev:,.2f} | base={base:,.2f} → tax={tax}"
-                    )
+                    if osno_cum <= 0:
+                        tax = 0
+                        rate = '0%'
+                        log_info(
+                            f"[TAX] {r['org']} | ОСНО | group={group_key} | base={base:,.2f} → tax=0  (loss carry-forward)"
+                        )
+                    else:
+                        rate = (
+                            f"{(tax / max(base, 1) * 100):.2f}%" if base > 0 else '0%'
+                        )
+                        log_info(
+                            f"[TAX] {r['org']} | ОСНО | group={group_key} | prev={prev:,.2f} | base={base:,.2f} → tax={tax}"
+                        )
                 else:
                     # Для юр. лиц ставка фиксированная, без накопления
                     base = max(r['ebit_tax'], 0)
