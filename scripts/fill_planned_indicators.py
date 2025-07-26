@@ -249,6 +249,30 @@ def calc_consolidated_min_tax(base, revenue, rate):
     return max(real_tax, min_tax)
 
 
+def consolidate_osno_tax(rows, meta):
+    """Show OSNO tax only on a single row per month when consolidated."""
+    from collections import defaultdict
+
+    grouped = defaultdict(list)
+    for i, m in enumerate(meta):
+        if m.get('consolidation') and m.get('type') == 'ИП' and m.get('mode') == 'ОСНО':
+            grouped[m['m']].append((i, m['org']))
+
+    for m, items in grouped.items():
+        if not items:
+            continue
+        total_tax = sum(rows[i][28] for i, _ in items)
+        main_idx = sorted(items, key=lambda x: x[1])[0][0]
+        for idx, _ in items:
+            if idx == main_idx:
+                rows[idx][28] = total_tax
+                rows[idx][29] = round(rows[idx][18] - total_tax)
+            else:
+                rows[idx][28] = 0
+                rows[idx][29] = round(rows[idx][18])
+
+
+
 
 
 # ---------- 4. Главная функция --------------------------------------------
@@ -706,7 +730,7 @@ def fill_planned_indicators():
             tax_base_cons_cum[m] = run
         # накопление прибыли по ОСНО: ключ 'consolidated' при консолидированном
         # учёте, иначе название организации
-        rows_out, cum_osno = [], {}
+        rows_out, row_meta, cum_osno = [], [], {}
         for r in out:
             tax = base = 0
             rate = '0%'
@@ -885,6 +909,14 @@ def fill_planned_indicators():
                 round(r['ebit_mgmt'] - tax)
             ])
 
+            row_meta.append(dict(
+                org=r['org'],
+                m=r['m'],
+                mode=r['mode'],
+                type=r['type'],
+                consolidation=org_cfg.get(r['org'], {}).get('consolidation', False),
+            ))
+
             if r['mode'] == 'ОСНО' and org_cfg.get(r['org'], {}).get('consolidation', False):
                 log_info(
                     f"[OSNO CONS] {r['org']} | m={r['m']} | osno_cum={osno_cum:.2f} | osno_cum_cons={osno_cum_cons:.2f}"
@@ -894,6 +926,7 @@ def fill_planned_indicators():
                     f"[OSNO INDV] {r['org']} | m={r['m']} | osno_cum={osno_cum:.2f} | osno_cum_cons=–"
                 )
 
+        consolidate_osno_tax(rows_out, row_meta)
 
         # === 4.9 Запись в Excel ====================================
         
