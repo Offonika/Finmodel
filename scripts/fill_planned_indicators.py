@@ -757,7 +757,7 @@ def fill_planned_indicators():
         for r in out:
             tax = base = 0
             rate = '0%'
-            osno_cum = tax_base_cons_cum.get(r['m'], 0)
+            osno_cum = 0
             osno_cum_cons = ''
             if r['mode'] == 'Доходы':
                 base = max(r['revN'], 0)
