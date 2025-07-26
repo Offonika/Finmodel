@@ -77,3 +77,32 @@ def test_tax_shown_only_once_in_consolidation():
     assert rows_out[1][28] == 0
     assert rows_out[0][29] == 61
     assert rows_out[1][29] == 200
+
+
+def calc_osno_cum_cons(rows):
+    month_totals = {}
+    for r in rows:
+        m = r['m']
+        month_totals[m] = month_totals.get(m, 0) + r['ebit_tax']
+    cum = {}
+    run = 0
+    for m in sorted(month_totals):
+        run += month_totals[m]
+        cum[m] = run
+    return [cum[r['m']] for r in rows]
+
+
+def test_consolidated_osno_cumulative_base_equal_per_month():
+    rows = [
+        {'org': 'A', 'm': 1, 'ebit_tax': 100},
+        {'org': 'B', 'm': 1, 'ebit_tax': 200},
+        {'org': 'A', 'm': 2, 'ebit_tax': 150},
+        {'org': 'B', 'm': 2, 'ebit_tax': -50},
+    ]
+
+    cons_bases = calc_osno_cum_cons(rows)
+    for month in {1, 2}:
+        vals = [b for r, b in zip(rows, cons_bases) if r['m'] == month]
+        assert len(set(vals)) == 1
+        expected = 300 if month == 1 else 400
+        assert vals[0] == expected
