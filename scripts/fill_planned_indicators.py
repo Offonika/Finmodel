@@ -239,6 +239,13 @@ def _apply_consolidated_dr_tax(rows):
     return totals
 
 
+def calc_consolidated_min_tax(base, revenue, rate):
+    """Return USN tax with 1% minimum for consolidated mode."""
+    real_tax = base * rate
+    min_tax = revenue * 0.01
+    return max(real_tax, min_tax)
+
+
 
 
 # ---------- 4. Главная функция --------------------------------------------
@@ -710,18 +717,35 @@ def fill_planned_indicators():
                 log_info(f"[TAX] {r['org']} | Доходы | base={base:,.2f} | raw={raw_tax} | esn={r['esn']} → tax={tax}")
 
             elif r['mode'] == 'Доходы-Расходы':
-                # Если применена принудительная минималка — налог = 1% от дохода
-                if r.get('usn_forced_min', False):
-                    tax = round(r['revN'] * 0.01)
-                    rate = '1%'
+                if org_cfg.get(r['org'], {}).get('consolidation', False):
+                    base = tax_base_cons_cum.get(r['m'], 0)
+                    revenue = cum_all[r['m']]
+                    rate_val = r['usn'] / 100
+                    tax = round(calc_consolidated_min_tax(base, revenue, rate_val))
+                    if tax == round(revenue * 0.01):
+                        rate = '1%'
+                        log_info(
+                            f"[TAX] {r['org']} | Доходы-Расходы | применена "
+                            f"минимальная ставка 1% от выручки ({tax:,.0f} ₽)"
+                        )
+                    else:
+                        rate = f"{r['usn']}%"
+                        log_info(
+                            f"[TAX] {r['org']} | Доходы-Расходы | база={base:,.2f} "
+                            f"| ставка={r['usn']}% → налог={tax}"
+                        )
                 else:
-                    base = max(r.get('tax_base', 0), 0)
-                    tax = round(base * r['usn'] / 100)
-                    rate = f"{(tax / base * 100):.2f}%" if base else '0%'
-                log_info(
-                    f"[TAX] {r['org']} | Доходы-Расходы | base={base:,.2f} "
-                    f"| tax={tax} | rate={rate}"
-                )
+                    if r.get('usn_forced_min', False):
+                        tax = round(r['revN'] * 0.01)
+                        rate = '1%'
+                    else:
+                        base = max(r.get('tax_base', 0), 0)
+                        tax = round(base * r['usn'] / 100)
+                        rate = f"{(tax / base * 100):.2f}%" if base else '0%'
+                    log_info(
+                        f"[TAX] {r['org']} | Доходы-Расходы | base={base:,.2f} "
+                        f"| tax={tax} | rate={rate}"
+                    )
                     
 
             else:  # ОСНО
