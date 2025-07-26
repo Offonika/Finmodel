@@ -711,7 +711,7 @@ def fill_planned_indicators():
             tax = base = 0
             rate = '0%'
             osno_cum = tax_base_cons_cum.get(r['m'], 0)
-            osno_cum_cons = cum_osno.get('consolidated')
+            osno_cum_cons = ''
             if r['mode'] == 'Доходы':
                 base = max(r['revN'], 0)
                 raw_tax = r.get('raw_tax', round(base * r['usn'] / 100))
@@ -783,7 +783,11 @@ def fill_planned_indicators():
 
                     cum_osno[group_key] = cum
                     osno_cum = cum_osno[group_key]
-                    osno_cum_cons = cum_osno.get('consolidated') if org_cfg.get(r['org'], {}).get('consolidation', False) else osno_cum
+                    osno_cum_cons = (
+                        cum_osno.get('consolidated')
+                        if org_cfg.get(r['org'], {}).get('consolidation', False)
+                        else ''
+                    )
 
                     if osno_cum <= 0:
                         tax = 0
@@ -809,7 +813,11 @@ def fill_planned_indicators():
                         else r['org']
                     )
                     osno_cum = cum_osno.get(group_key, 0)
-                    osno_cum_cons = cum_osno.get('consolidated') if org_cfg.get(r['org'], {}).get('consolidation', False) else osno_cum
+                    osno_cum_cons = (
+                        cum_osno.get('consolidated')
+                        if org_cfg.get(r['org'], {}).get('consolidation', False)
+                        else ''
+                    )
             rows_out.append([
                 #  1  Организация
                 r['org'],
@@ -865,7 +873,7 @@ def fill_planned_indicators():
                 round(osno_cum),
 
                 # 26  БазаНДФЛ ОСНО накоп. сводно, ₽
-                round(osno_cum_cons) if osno_cum_cons is not None else '',
+                round(osno_cum_cons) if osno_cum_cons != '' else '',
 
                 # 27  Режим
                 r['mode'],
@@ -876,6 +884,15 @@ def fill_planned_indicators():
                 # 30  Чистая прибыль, ₽
                 round(r['ebit_mgmt'] - tax)
             ])
+
+            if r['mode'] == 'ОСНО' and org_cfg.get(r['org'], {}).get('consolidation', False):
+                log_info(
+                    f"[OSNO CONS] {r['org']} | m={r['m']} | osno_cum={osno_cum:.2f} | osno_cum_cons={osno_cum_cons:.2f}"
+                )
+            else:
+                log_info(
+                    f"[OSNO INDV] {r['org']} | m={r['m']} | osno_cum={osno_cum:.2f} | osno_cum_cons=–"
+                )
 
 
         # === 4.9 Запись в Excel ====================================
