@@ -56,7 +56,10 @@ def test_tax_shown_only_once_in_consolidation():
         row = [0] * 30
         row[0] = org
         row[1] = 1
+        # 19 column is База налога: in tests treat it
+        # same as EBITDA for simplicity
         row[18] = ebit
+        row[19] = ebit
         row[26] = 'ОСНО'
         row[28] = tax
         row[29] = ebit - tax
