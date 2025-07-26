@@ -186,14 +186,32 @@ def full_cogs(cn, nds):
     return cn * (1 + nds / 100)
 
 
-def _calc_row(revN, mpNet, cost_sales, cost_tax, fot, esn, oth, mode, mpGross=0):
+def _calc_row(
+    revN,
+    mpNet,
+    cost_sales,
+    cost_tax,
+    fot,
+    esn,
+    oth,
+    mode,
+    mpGross=0,
+    oklad_of=None,
+):
     """Calculate management and tax EBITDA for given inputs."""
+
+    if oklad_of is None:
+        oklad_of = fot
+
     ebit_mgmt = revN - (cost_sales + mpNet + fot + esn + oth)
     if mode == 'Доходы-Расходы':
-        ebit_tax = revN - (cost_tax + mpGross + fot + esn + oth)
+        ebit_tax = revN - (cost_tax + mpGross + oklad_of + esn + oth)
     else:
         ebit_tax = ebit_mgmt
-    return {'EBITDA, ₽': ebit_mgmt, 'Расчет_базы_налога': ebit_tax}
+    return {
+        'EBITDA, ₽': ebit_mgmt,
+        'Расчет_базы_налога': ebit_tax,
+    }
 
 
 def _apply_consolidated_dr_tax(rows):
@@ -234,7 +252,7 @@ def fill_planned_indicators():
         'Расх. MP без НДС, ₽',        # ← бывшая «Расх. MP, ₽»
         'ФОТ, ₽', 'Оклад_Оф, ₽', 'ЕСН, ₽', 'Прочие, ₽', 'EBITDA, ₽',
         'Расчет_базы_налога', 'EBITDA нал. накоп., ₽',
-        'EBITDA накоп., ₽', 'EBITDA сводно, ₽', 'EBITDA налог сводно, ₽', 'Режим',
+        'EBITDA накоп., ₽', 'EBITDA сводно, ₽', 'РасчетБазыНалогаНакопКонсол', 'Режим',
         'Ставка УСН, %', 'Налог, ₽', 'Чистая прибыль, ₽',
     ]
 
@@ -581,7 +599,7 @@ def fill_planned_indicators():
             ebit_mgmt = revN - (cost_sales + mpNet + fot + esn + oth_cost)
             if mode_eff == 'Доходы-Расходы':
 
-                ebit_tax = revN - (cost_tax + mpGross + fot + esn + oth_cost)
+                ebit_tax = revN - (cost_tax + mpGross + oklad_of + esn + oth_cost)
 
             else:
                 ebit_tax = ebit_mgmt
@@ -662,7 +680,12 @@ def fill_planned_indicators():
                 r['deduction'] = round(deduction_total * share)
 
         ebit_m = acc(out, lambda x: x['m'], lambda x: x['ebit'])
-        ebit_tax_cons_m = cons_e_tax
+
+        tax_base_cons_cum = {}
+        run = 0
+        for m in months:
+            run += cons_e_tax.get(m, 0)
+            tax_base_cons_cum[m] = run
         # накопление прибыли по ОСНО: ключ 'consolidated' при консолидированном
         # учёте, иначе название организации
         rows_out, cum_osno = [], {}
@@ -776,8 +799,11 @@ def fill_planned_indicators():
                 round(r['cumE']),
                 # 23  EBITDA сводно, ₽
                 round(ebit_m[r['m']]),
-                # 24  EBITDA налог сводно, ₽
-                round(ebit_tax_cons_m.get(r['m'], 0)),
+
+                # 24  РасчетБазыНалогаНакопКонсол
+                round(tax_base_cons_cum.get(r['m'], 0)),
+
+
                 # 25  Режим
                 r['mode'],
                 # 26  Ставка УСН, %
