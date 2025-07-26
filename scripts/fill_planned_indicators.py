@@ -232,7 +232,7 @@ def fill_planned_indicators():
         'Себестоимость Налог, ₽', 'Себестоимость Налог без НДС, ₽',
         'Расх. MP с НДС, ₽',          # ← новая колонка (брутто)
         'Расх. MP без НДС, ₽',        # ← бывшая «Расх. MP, ₽»
-        'ФОТ, ₽', 'ЕСН, ₽', 'Прочие, ₽', 'EBITDA, ₽',
+        'ФОТ, ₽', 'Оклад_Оф, ₽', 'ЕСН, ₽', 'Прочие, ₽', 'EBITDA, ₽',
         'Расчет_базы_налога', 'EBITDA нал. накоп., ₽',
         'EBITDA накоп., ₽', 'EBITDA сводно, ₽', 'EBITDA налог сводно, ₽', 'Режим',
         'Ставка УСН, %', 'Налог, ₽', 'Чистая прибыль, ₽',
@@ -442,6 +442,7 @@ def fill_planned_indicators():
         payroll_rows, payroll_idx = read_rows(ss.sheets[SHEET_PAYROLL])
         esn_by_org = {}
         fot_by_org = {}
+        oklad_by_org = {}
 
         for r in payroll_rows:
             try:
@@ -450,8 +451,12 @@ def fill_planned_indicators():
                 if scenario == 'как есть' and org:
                     esn = float(r[payroll_idx['итого_взносы']] or 0)
                     fot = float(r[payroll_idx['итого_зарплата']] or 0)
+                    ok_off = 0
+                    if 'оклад_оф' in payroll_idx:
+                        ok_off = float(r[payroll_idx['оклад_оф']] or 0)
                     esn_by_org[org] = esn_by_org.get(org, 0) + esn
                     fot_by_org[org] = fot_by_org.get(org, 0) + fot
+                    oklad_by_org[org] = oklad_by_org.get(org, 0) + ok_off
             except Exception:
                 pass
 
@@ -525,6 +530,7 @@ def fill_planned_indicators():
 
             fot = fot_by_org.get(g['org'], 0)
             esn = esn_by_org.get(g['org'], 0)
+            oklad_of = oklad_by_org.get(g['org'], 0)
             oth_cost = other.get(g['org'], 0)
             # дальше расчет показателей — НИКАКИХ пересчётов mode_eff и gross тут больше не нужно!
 
@@ -557,6 +563,7 @@ def fill_planned_indicators():
             key = (g['org'], g['month'])
             fot = fot_by_org.get(g['org'], 0)
             esn = esn_by_org.get(g['org'], 0)
+            oklad_of = oklad_by_org.get(g['org'], 0)
 
 
             oth_cost = other.get(g['org'], 0)
@@ -591,7 +598,7 @@ def fill_planned_indicators():
                 revN=revN, ndsSum=nds_sum, nds=nds,
                 cr=g['cr'], cn=g['cn'], ct=cost_tax, ct_wo=cost_tax_wo,
                 mpGross=mpGross, mpNet=mpNet,
-                fot=fot, esn=esn, oth=oth_cost,
+                fot=fot, oklad_of=oklad_of, esn=esn, oth=oth_cost,
                 ebit=ebit_mgmt,
                 ebit_mgmt=ebit_mgmt,
                 ebit_tax=ebit_tax,
@@ -753,29 +760,31 @@ def fill_planned_indicators():
                 round(r['mpNet']),
                 # 15  ФОТ, ₽
                 round(r['fot']),
-                # 16  ЕСН, ₽
+                # 16  Оклад_Оф, ₽
+                round(r['oklad_of']),
+                # 17  ЕСН, ₽
                 round(r['esn']),
-                # 17  Прочие, ₽
+                # 18  Прочие, ₽
                 round(r['oth']),
-                # 18  EBITDA, ₽
+                # 19  EBITDA, ₽
                 round(r['ebit_mgmt']),
-                # 19  Расчет_базы_налога
+                # 20  Расчет_базы_налога
                 round(r['ebit_tax']),
-                # 20  EBITDA нал. накоп., ₽
+                # 21  EBITDA нал. накоп., ₽
                 round(r['cumE_tax']),
-                # 21  EBITDA накоп., ₽
+                # 22  EBITDA накоп., ₽
                 round(r['cumE']),
-                # 22  EBITDA сводно, ₽
+                # 23  EBITDA сводно, ₽
                 round(ebit_m[r['m']]),
-                # 23  EBITDA налог сводно, ₽
+                # 24  EBITDA налог сводно, ₽
                 round(ebit_tax_cons_m.get(r['m'], 0)),
-                # 24  Режим
+                # 25  Режим
                 r['mode'],
-                # 25  Ставка УСН, %
+                # 26  Ставка УСН, %
                 rate,
-                # 26  Налог, ₽
+                # 27  Налог, ₽
                 tax,
-                # 27  Чистая прибыль, ₽
+                # 28  Чистая прибыль, ₽
                 round(r['ebit_mgmt'] - tax)
             ])
 
