@@ -250,26 +250,33 @@ def calc_consolidated_min_tax(base, revenue, rate):
 
 
 def consolidate_osno_tax(rows, meta):
-    """Show OSNO tax only on a single row per month when consolidated."""
+    """
+    В режиме консолидации ОСНО/ИП:
+    - налог только в одной строке на месяц (остальные — ноль)
+    - в остальных строках Чистая прибыль = EBITDA
+    """
     from collections import defaultdict
 
     grouped = defaultdict(list)
     for i, m in enumerate(meta):
         if m.get('consolidation') and m.get('type') == 'ИП' and m.get('mode') == 'ОСНО':
-            grouped[m['m']].append((i, m['org']))
+            grouped[(m['m'])].append(i)  # группируем по месяцу
 
-    for m, items in grouped.items():
-        if not items:
+    for m, idxs in grouped.items():
+        if not idxs:
             continue
-        total_tax = sum(rows[i][28] for i, _ in items)
-        main_idx = sorted(items, key=lambda x: x[1])[0][0]
-        for idx, _ in items:
-            if idx == main_idx:
-                rows[idx][28] = total_tax
-                rows[idx][29] = round(rows[idx][18] - total_tax)
+        # Найти первую строку по алфавиту организации — туда записываем налог
+        main_idx = sorted(idxs, key=lambda i: rows[i][0])[0]
+        # Суммируем налог по всем строкам месяца
+        total_tax = sum(rows[i][28] for i in idxs)
+        # В остальные строки — налог = 0, чистая прибыль = EBITDA
+        for i in idxs:
+            if i == main_idx:
+                rows[i][28] = total_tax
+                rows[i][29] = rows[i][19] - total_tax  # Чистая прибыль = EBITDA - налог
             else:
-                rows[idx][28] = 0
-                rows[idx][29] = round(rows[idx][18])
+                rows[i][28] = 0
+                rows[i][29] = rows[i][19]  # Чистая прибыль = EBITDA
 
 
 
