@@ -259,11 +259,14 @@ def fill_planned_indicators():
         'Расх. MP без НДС, ₽',        # ← бывшая «Расх. MP, ₽»
         'ФОТ, ₽', 'Оклад_Оф, ₽', 'ЕСН, ₽', 'Прочие, ₽', 'EBITDA, ₽',
         'Расчет_базы_налога', 'EBITDA нал. накоп., ₽',
-        'EBITDA накоп., ₽', 'EBITDA сводно, ₽', 'РасчетБазыНалогаНакопКонсол', 'Режим',
+        'EBITDA накоп., ₽', 'EBITDA сводно, ₽', 'РасчетБазыНалогаНакопКонсол',
+        'БазаНДФЛ ОСНО накоп., ₽', 'Режим',
         'Ставка УСН, %', 'Налог, ₽', 'Чистая прибыль, ₽',
     ]
 
     ruble_cols = [h for h in headers if '₽' in h or h.startswith('Себестоимость')]
+    if 'БазаНДФЛ ОСНО накоп., ₽' not in ruble_cols:
+        ruble_cols.append('БазаНДФЛ ОСНО накоп., ₽')
 
     wb = app = None
     try:
@@ -703,6 +706,7 @@ def fill_planned_indicators():
         for r in out:
             tax = base = 0
             rate = '0%'
+            osno_cum = tax_base_cons_cum.get(r['m'], 0)
             if r['mode'] == 'Доходы':
                 base = max(r['revN'], 0)
                 raw_tax = r.get('raw_tax', round(base * r['usn'] / 100))
@@ -772,6 +776,7 @@ def fill_planned_indicators():
                                        ndfl_prog(taxable_prev)))
 
                     cum_osno[group_key] = cum
+                    osno_cum = cum_osno[group_key]
 
                     rate = f"{(tax / max(base, 1) * 100):.2f}%" if base > 0 else '0%'
 
@@ -783,6 +788,12 @@ def fill_planned_indicators():
                     base = max(r['ebit_tax'], 0)
                     tax = round(base * 0.25)
                     rate = '25%'
+                    group_key = (
+                        'consolidated'
+                        if org_cfg.get(r['org'], {}).get('consolidation', False)
+                        else r['org']
+                    )
+                    osno_cum = cum_osno.get(group_key, 0)
             rows_out.append([
                 #  1  Организация
                 r['org'],
@@ -834,14 +845,16 @@ def fill_planned_indicators():
                 # 24  РасчетБазыНалогаНакопКонсол
                 round(tax_base_cons_cum.get(r['m'], 0)),
 
+                # 25  БазаНДФЛ ОСНО накоп., ₽
+                round(osno_cum),
 
-                # 25  Режим
+                # 26  Режим
                 r['mode'],
-                # 26  Ставка УСН, %
+                # 27  Ставка УСН, %
                 rate,
-                # 27  Налог, ₽
+                # 28  Налог, ₽
                 tax,
-                # 28  Чистая прибыль, ₽
+                # 29  Чистая прибыль, ₽
                 round(r['ebit_mgmt'] - tax)
             ])
 
