@@ -849,14 +849,16 @@ def fill_planned_indicators():
                         tax = 0
                         rate = '0%'
                         log_info(
-                            f"[TAX] {r['org']} | ОСНО | group={group_key} | base={base:,.2f} → tax=0  (loss carry-forward)"
+                            f"[TAX] {r['org']} | ОСНО | group={group_key} | prev={prev:,.2f} | "
+                            f"base={base:,.2f} | cum={cum:,.2f} | rate={rate} | delta=0  (loss carry-forward)"
                         )
                     else:
                         rate = (
                             f"{(tax / max(base, 1) * 100):.2f}%" if base > 0 else '0%'
                         )
                         log_info(
-                            f"[TAX] {r['org']} | ОСНО | group={group_key} | prev={prev:,.2f} | base={base:,.2f} → tax={tax}"
+                            f"[TAX] {r['org']} | ОСНО | group={group_key} | prev={prev:,.2f} | "
+                            f"base={base:,.2f} | cum={cum:,.2f} | rate={rate} | delta={tax}"
                         )
                 else:
                     # Для юр. лиц ставка фиксированная, без накопления
