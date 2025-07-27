@@ -820,9 +820,9 @@ def fill_planned_indicators():
                     group_key = ('consolidated'
                                  if org_cfg.get(r['org'], {}).get('consolidation', False)
                                  else r['org'])
-                    # Сбрасываем накопление только один раз при переходе группы
-                    if r['prevM'] != 'ОСНО' and group_key not in cum_osno:
-
+                    # Сбрасываем накопление при первом месяце после выхода
+                    # из режима ОСНО вне зависимости от наличия записи
+                    if r['prevM'] != 'ОСНО':
                         cum_osno[group_key] = 0
 
                     # --- ключ для накопления прибыли/убытка ---

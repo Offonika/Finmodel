@@ -10,7 +10,7 @@ def calc_osno_tax(rows, consolidate=False):
     results = []
     for r in rows:
         key = 'consolidated' if consolidate else r['org']
-        if r.get('prevM') != 'ОСНО' and key not in cum:
+        if r.get('prevM') != 'ОСНО':
             cum[key] = 0
         prev = cum.get(key, 0)
         base = r['ebit_tax']
@@ -120,3 +120,17 @@ def test_yearly_tax_sum_matches_progressive():
     total_base = sum(r['ebit_tax'] for r in rows)
 
     assert total_tax == round(ndfl_prog(total_base))
+
+
+def test_reset_base_after_regime_change():
+    rows = [
+        {'org': 'A', 'ebit_tax': 2_200_000, 'prevM': 'Доходы'},
+        {'org': 'A', 'ebit_tax': 300_000, 'prevM': 'ОСНО'},
+        {'org': 'A', 'ebit_tax': 100_000, 'prevM': 'Доходы'},
+    ]
+
+    res = calc_osno_tax(rows, consolidate=False)
+
+    assert res[0]['tax'] == round(ndfl_prog(2_200_000))
+    assert res[1]['tax'] == round(ndfl_prog(2_500_000) - ndfl_prog(2_200_000))
+    assert res[2]['tax'] == round(ndfl_prog(100_000))
