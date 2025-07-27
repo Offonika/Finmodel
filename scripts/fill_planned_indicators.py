@@ -267,16 +267,25 @@ def consolidate_osno_tax(rows, meta):
             continue
         # Найти первую строку по алфавиту организации — туда записываем налог
         main_idx = sorted(idxs, key=lambda i: rows[i][0])[0]
-        # Суммируем налог по всем строкам месяца
+        # Суммируем налог и базу по всем строкам месяца
         total_tax = sum(rows[i][28] for i in idxs)
-        # В остальные строки — налог = 0, чистая прибыль = EBITDA
+        total_base = sum(rows[i][19] for i in idxs)
+        rate = (
+            f"{(total_tax / total_base * 100):.2f}%"
+            if total_base
+            else '0%'
+        )
+        # В остальные строки — налог = 0, чистая прибыль = EBITDA,
+        # ставка НДФЛ одинаковая во всех строках
         for i in idxs:
             if i == main_idx:
                 rows[i][28] = total_tax
                 rows[i][29] = rows[i][19] - total_tax  # Чистая прибыль = EBITDA - налог
+                rows[i][27] = rate
             else:
                 rows[i][28] = 0
                 rows[i][29] = rows[i][19]  # Чистая прибыль = EBITDA
+                rows[i][27] = rate
 
 
 
