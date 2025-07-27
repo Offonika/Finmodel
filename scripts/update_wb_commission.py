@@ -3,6 +3,7 @@
 import os
 import xlwings as xw
 import requests
+from scripts.sheet_utils import apply_sheet_settings
 
 # ==== КОНСТАНТЫ ====
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -82,19 +83,7 @@ def main():
             sht_tar.clear()
             print(f'→ Лист "{TARGET_SHEET}" очищен')
 
-            # Переместим существующий лист на 30‑ю позицию, если надо
-            if sht_tar.index != n_target:
-                try:
-                    sht_tar.api.Move(Before=sheets[n_target-1].api)
-                    print(f'→ Лист "{TARGET_SHEET}" перемещён на позицию {n_target}')
-                except Exception as e:
-                    print(f"⚠️ Не удалось переместить лист: {e}")
-
-        # Цвет ярлыка #92D050
-        try:
-            sht_tar.api.Tab.Color =  142661105 # #92D050 (146,208,80)
-        except Exception as e:
-            print(f"⚠️ Не удалось задать цвет ярлыка: {e}")
+        apply_sheet_settings(wb, TARGET_SHEET)
 
         sht_tar.range('A1').value = out
 

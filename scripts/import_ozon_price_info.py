@@ -5,6 +5,7 @@ import requests
 import xlwings as xw
 import pandas as pd
 from time import sleep
+from scripts.sheet_utils import apply_sheet_settings
 
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -161,18 +162,7 @@ def main():
         prices_ws.tables.add(tbl_range, name="OzonPricesTable", table_style_name="TableStyleMedium7", has_headers=True)
         print("→ Умная таблица создана (TableStyleMedium7)")
 
-        try:
-            prices_ws.api.Tab.Color = 0xEAF884
-            print("→ Цвет ярлыка #FFB366 установлен")
-        except Exception as e:
-            print(f"⚠️ Не удалось установить цвет ярлыка: {e}")
-
-        try:
-            if prices_ws.index != 15:
-                prices_ws.api.Move(Before=wb.sheets[14].api)
-                print("→ Лист перемещён на позицию 15")
-        except Exception as e:
-            print(f"⚠️ Не удалось переместить лист: {e}")
+        apply_sheet_settings(wb, SHEET_PRICES)
 
         print(f'→ Итог: записано строк: {row_ptr-2}')
     except Exception as e:
