@@ -859,21 +859,45 @@ def fill_planned_indicators():
                             f"[TAX] {r['org']} | ОСНО | group={group_key} | prev={prev:,.2f} | base={base:,.2f} → tax={tax}"
                         )
                 else:
-                    # Для юр. лиц ставка фиксированная, без накопления
-                    base = max(r['ebit_tax'], 0)
-                    tax = round(base * 0.25)
-                    rate = '25%'
+                    # Для юр. лиц ставка фиксированная с учётом накопленной базы
                     group_key = (
                         'consolidated'
                         if org_cfg.get(r['org'], {}).get('consolidation', False)
                         else r['org']
                     )
-                    osno_cum = cum_osno.get(group_key, 0)
+
+                    if r['prevM'] != 'ОСНО':
+                        cum_osno[group_key] = 0
+
+                    prev = cum_osno.get(group_key, 0)
+                    base = r['ebit_tax']
+                    cum = prev + base
+
+                    tax_prev = max(0, prev * 0.25)
+                    tax_now = max(0, cum * 0.25)
+                    tax = max(0, round(tax_now - tax_prev))
+
+                    cum_osno[group_key] = cum
+                    osno_cum = cum_osno[group_key]
                     osno_cum_cons = (
                         osno_cons_cum.get(r['m'], 0)
                         if org_cfg.get(r['org'], {}).get('consolidation', False)
                         else ''
                     )
+
+                    if osno_cum <= 0:
+                        tax = 0
+                        rate = '0%'
+                        log_info(
+                            f"[TAX] {r['org']} | ОСНО | group={group_key} | base={base:,.2f} → tax=0  (loss carry-forward)"
+                        )
+                    else:
+                        rate = (
+                            f"{(tax / max(base, 1) * 100):.2f}%" if base > 0 else '0%'
+                        )
+                        log_info(
+                            f"[TAX] {r['org']} | ОСНО | group={group_key} | prev={prev:,.2f} | base={base:,.2f} → tax={tax}"
+                        )
             rows_out.append([
                 #  1  Организация
                 r['org'],
