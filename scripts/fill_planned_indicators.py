@@ -763,6 +763,13 @@ def fill_planned_indicators():
         # накопление прибыли по ОСНО: ключ 'consolidated' при консолидированном
         # учёте, иначе название организации
         rows_out, row_meta, cum_osno = [], [], {}
+        # ▸ peak_osno хранит максимальную уже обложенную положительную
+        #   консолидированную прибыль по каждой группе «consolidated» / ИП.
+        #   Это нужно, чтобы при появлении нового убытка, который снова
+        #   выводит кумулятивную базу в минус, а затем мы возвращаемся в плюс,
+        #   налог считался **только с прироста** сверх ранее обложенного
+        #   положительного пика, а не с нуля (двойное обложение).
+        peak_osno = {}
         last_mode_group = {}
         for r in out:
             tax = base = 0
@@ -827,6 +834,7 @@ def fill_planned_indicators():
                     # --- Переход на ОСНО — сброс накопленной базы ---
                     if last_mode_group.get(group_key) != 'ОСНО':
                         cum_osno[group_key] = 0
+                        peak_osno[group_key] = 0
                         log_info(
                             f"[TAX] {r['org']} | ОСНО | group={group_key} → reset cumulative base"
                         )
@@ -834,25 +842,29 @@ def fill_planned_indicators():
                     # --- Накопление прибыли (убытки учитываются) ---
                     prev = cum_osno.get(group_key, 0)
                     base = r['ebit_tax']
+
+                    # Новая кумулятивная прибыль/убыток группы
                     cum = prev + base
 
-                    if cum <= 0:
-                        # Нет налога, переносим убыток вперёд
-                        tax = 0
-                        rate = '0%'
-                        log_info(
-                            f"[TAX] {r['org']} | ОСНО | group={group_key} | carry-forward: cum={cum:,.2f} → tax=0"
-                        )
+                    # Максимум положительной базы, которая уже была обложена
+                    peak = peak_osno.get(group_key, 0)
+
+                    if cum > peak:
+                        # Налог – только с прироста сверх peak
+                        tax = round(ndfl_prog(cum) - ndfl_prog(peak))
+                        peak_osno[group_key] = cum  # фиксируем новый пик
                     else:
-                        taxable_prev = max(prev, 0)
-                        taxable_cum = max(cum, 0)
-                        tax = max(0, round(ndfl_prog(taxable_cum) - ndfl_prog(taxable_prev)))
-                        rate = (
-                            f"{(tax / max(base, 1) * 100):.2f}%" if base > 0 else '0%'
-                        )
-                        log_info(
-                            f"[TAX] {r['org']} | ОСНО | group={group_key} | prev={prev:,.2f} | base={base:,.2f} | cum={cum:,.2f} → tax={tax}"
-                        )
+                        # Кумулятивная база не превысила предыдущий пик –
+                        # значит ничего нового не облагаем
+                        tax = 0
+
+                    rate = (
+                        f"{(tax / max(base, 1) * 100):.2f}%" if base > 0 else '0%'
+                    ) if tax else '0%'
+
+                    log_info(
+                        f"[TAX] {r['org']} | ОСНО | group={group_key} | prev={prev:,.2f} | base={base:,.2f} | cum={cum:,.2f} | peak={peak:,.2f} → tax={tax}"
+                    )
 
                     cum_osno[group_key] = cum
                     osno_cum = cum_osno[group_key]
