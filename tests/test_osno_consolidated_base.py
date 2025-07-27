@@ -25,6 +25,26 @@ def calc_osno_tax(rows, consolidate=False):
     return results
 
 
+def calc_osno_tax_new(rows, consolidate=False):
+    cum = {}
+    last_mode = {}
+    results = []
+    for r in rows:
+        key = 'consolidated' if consolidate else r['org']
+        if last_mode.get(key) != 'ОСНО' and r.get('mode', 'ОСНО') == 'ОСНО':
+            cum[key] = 0
+        prev = cum.get(key, 0)
+        base = r['ebit_tax']
+        total = prev + base
+        taxable_prev = max(prev, 0)
+        taxable_total = max(total, 0)
+        tax = max(0, round(ndfl_prog(taxable_total) - ndfl_prog(taxable_prev)))
+        cum[key] = total
+        last_mode[key] = r.get('mode', 'ОСНО')
+        results.append({'org': r['org'], 'tax': tax, 'base': total})
+    return results
+
+
 def test_consolidated_base_shared():
     rows = [
         {'org': 'A', 'ebit_tax': 100, 'prevM': 'ОСНО'},
@@ -134,3 +154,16 @@ def test_reset_base_after_regime_change():
     assert res[0]['tax'] == round(ndfl_prog(2_200_000))
     assert res[1]['tax'] == round(ndfl_prog(2_500_000) - ndfl_prog(2_200_000))
     assert res[2]['tax'] == round(ndfl_prog(100_000))
+
+
+def test_consolidated_transition_with_losses():
+    rows = [
+        {'org': 'A', 'ebit_tax': -200, 'mode': 'ОСНО'},
+        {'org': 'B', 'ebit_tax': 100, 'mode': 'ОСНО'},
+    ]
+
+    res = calc_osno_tax_new(rows, consolidate=True)
+
+    assert res[0]['tax'] == 0
+    assert res[1]['tax'] == 0
+    assert res[1]['base'] == -100
