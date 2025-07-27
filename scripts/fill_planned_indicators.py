@@ -206,7 +206,8 @@ def _calc_row(
     if oklad_of is None:
         oklad_of = fot
 
-    ebit_mgmt = revN - (cost_sales + mpNet + fot + esn + oth)
+    labor_exp = oklad_of if mode == 'ОСНО' else fot
+    ebit_mgmt = revN - (cost_sales + mpNet + labor_exp + esn + oth)
     if mode == 'Доходы-Расходы':
         ebit_tax = revN - (cost_tax + mpGross + oklad_of + esn + oth)
     else:
@@ -637,6 +638,7 @@ def fill_planned_indicators():
             esn = esn_by_org.get(g['org'], 0)
             oklad_of = oklad_by_org.get(g['org'], 0)
 
+            labor_exp = oklad_of if mode_eff == 'ОСНО' else fot
 
             oth_cost = other.get(g['org'], 0)
 
@@ -650,7 +652,7 @@ def fill_planned_indicators():
             cost_sales = cost_base
             cost_tax = g.get('ct', full_cogs(g['cn'], nds))
             cost_tax_wo = g.get('ct_wo', g['cn'])
-            ebit_mgmt = revN - (cost_sales + mpNet + fot + esn + oth_cost)
+            ebit_mgmt = revN - (cost_sales + mpNet + labor_exp + esn + oth_cost)
             if mode_eff == 'Доходы-Расходы':
                 ebit_tax = revN - (cost_tax + mpGross + oklad_of + esn + oth_cost)
                 log_info(
