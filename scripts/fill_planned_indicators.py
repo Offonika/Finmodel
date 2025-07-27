@@ -832,10 +832,10 @@ def fill_planned_indicators():
                     cum = prev + base
 
                     taxable_prev = max(prev, 0)
-                    taxable_cum = max(cum, 0)
+                    taxable_cum = max(prev + base, 0)
                     tax = max(0, round(
                         ndfl_prog(taxable_cum) - ndfl_prog(taxable_prev)
-                    ))
+                    ))  # дельта налога за месяц
 
                     cum_osno[group_key] = cum
                     osno_cum = cum_osno[group_key]
@@ -935,7 +935,7 @@ def fill_planned_indicators():
                 r['mode'],
                 # 28  Ставка УСН, %
                 rate,
-                # 29  Налог, ₽
+                # 29  Налог, ₽  (дельта НДФЛ за месяц для ОСНО ИП)
                 tax,
                 # 30  Чистая прибыль, ₽
                 round(r['ebit_mgmt'] - tax)
