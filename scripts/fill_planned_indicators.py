@@ -721,23 +721,109 @@ def fill_planned_indicators():
                 r['tax'] = round(r['revN'] * 0.01) if use_min \
                            else round(max(r['tax_base'], 0) * r['usn'] / 100)
 
-        # ---- 3A. Консолидация "Доходы" с учётом взносов по группе -----
-        cons_income = defaultdict(list)
+        # ---- 3A. Консолидация "Доходы": YTD‑кэп 50% с carry‑over -----
+        from collections import defaultdict
+
+        cons_income = defaultdict(list)      # m -> [rows]
+        raw_total_by_m = defaultdict(int)    # m -> Σ raw_tax
+        esn_total_by_m = defaultdict(float)  # m -> Σ ESN
+
         for r in out:
-            if (r['mode'] == 'Доходы' and
-                    org_cfg.get(r['org'], {}).get('consolidation', False)):
+            if (
+                r['mode'] == 'Доходы'
+                and org_cfg.get(r['org'], {}).get('consolidation', False)
+            ):
                 base = max(r['revN'], 0)
                 raw_tax = round(base * r['usn'] / 100)
                 r['raw_tax'] = raw_tax
                 cons_income[r['m']].append(r)
+                raw_total_by_m[r['m']] += raw_tax
+                esn_total_by_m[r['m']] += r['esn']  # ЕСН — одна сумма на месяц, берем как есть
 
-        for m, rows in cons_income.items():
+        months_sorted = sorted(cons_income.keys())
+        raw_acc = esn_acc = cap_prev = 0
+        ded_m = {}
+
+        for m in months_sorted:
+            raw_acc += raw_total_by_m.get(m, 0)
+            esn_acc += esn_total_by_m.get(m, 0.0)
+            cap_curr = min(esn_acc, 0.5 * raw_acc)
+            ded_m[m] = max(0, round(cap_curr - cap_prev))
+            cap_prev = cap_curr
+            # log_info(f"[USN CONS YTD] m={m:02} raw_ytd={raw_acc:,} esn_ytd={esn_acc:,.0f} ded_m={ded_m[m]:,}")
+
+        for m in months_sorted:
+            rows = cons_income[m]
             total_raw = sum(r['raw_tax'] for r in rows)
-            total_esn = sum(r['esn'] for r in rows)
-            deduction_total = min(total_esn, total_raw * 0.5)
+            d_total = ded_m.get(m, 0)
+            assigned = 0
+            portions = []
             for r in rows:
-                share = r['raw_tax'] / total_raw if total_raw else 0
-                r['deduction'] = round(deduction_total * share)
+                sh = (r['raw_tax'] / total_raw) if total_raw else 0
+                val = int(round(d_total * sh))
+                r['deduction'] = val
+                portions.append((r, sh, d_total * sh - val))
+                assigned += val
+            delta = d_total - assigned
+            if delta != 0 and rows:
+                portions.sort(key=lambda t: t[2], reverse=True)
+                i = 0
+                sign = 1 if delta > 0 else -1
+                while delta != 0 and i < len(portions):
+                    portions[i][0]['deduction'] += sign
+                    delta -= sign
+                    i = (i + 1) if i + 1 < len(portions) else 0
+
+        # ---- 3B. Неконсолидация "Доходы": YTD‑кэп 50% по каждой организации -----
+        from collections import defaultdict
+
+        org_income = defaultdict(list)          # (org, m) -> [rows]
+        raw_by_org_m = defaultdict(int)         # (org, m) -> Σ raw_tax
+        esn_by_org_m = defaultdict(float)       # (org, m) -> Σ ESN
+
+        for r in out:
+            if r['mode'] == 'Доходы' and not org_cfg.get(r['org'], {}).get('consolidation', False):
+                base = max(r['revN'], 0)
+                raw_tax = round(base * r['usn'] / 100)
+                r['raw_tax'] = raw_tax
+                org_income[(r['org'], r['m'])].append(r)
+                raw_by_org_m[(r['org'], r['m'])] += raw_tax
+                esn_by_org_m[(r['org'], r['m'])] += r['esn']  # ЕСН — одна сумма на месяц
+
+        orgs = sorted({r['org'] for r in out if r['mode'] == 'Доходы' and not org_cfg.get(r['org'], {}).get('consolidation', False)})
+        for org in orgs:
+            months_org = sorted({r['m'] for r in out if r['org'] == org and r['mode'] == 'Доходы' and not org_cfg.get(org, {}).get('consolidation', False)})
+            raw_acc = esn_acc = cap_prev = 0
+            ded_by_m = {}
+            for m in months_org:
+                raw_acc += raw_by_org_m.get((org, m), 0)
+                esn_acc += esn_by_org_m.get((org, m), 0.0)
+                cap_curr = min(esn_acc, 0.5 * raw_acc)
+                ded_by_m[m] = max(0, round(cap_curr - cap_prev))
+                cap_prev = cap_curr
+                # log_info(f"[USN ORG YTD] {org} m={m:02} raw_ytd={raw_acc:,} esn_ytd={esn_acc:,.0f} ded_m={ded_by_m[m]:,}")
+
+            for m in months_org:
+                rows = org_income.get((org, m), [])
+                total_raw = sum(r['raw_tax'] for r in rows)
+                d_total = ded_by_m.get(m, 0)
+                assigned = 0
+                portions = []
+                for r in rows:
+                    sh = (r['raw_tax'] / total_raw) if total_raw else 0
+                    val = int(round(d_total * sh))
+                    r['deduction'] = val
+                    portions.append((r, sh, d_total * sh - val))
+                    assigned += val
+                delta = d_total - assigned
+                if delta != 0 and rows:
+                    portions.sort(key=lambda t: t[2], reverse=True)
+                    i = 0
+                    sign = 1 if delta > 0 else -1
+                    while delta != 0 and i < len(portions):
+                        portions[i][0]['deduction'] += sign
+                        delta -= sign
+                        i = (i + 1) if i + 1 < len(portions) else 0
 
         ebit_m = acc(out, lambda x: x['m'], lambda x: x['ebit'])
 
@@ -781,15 +867,12 @@ def fill_planned_indicators():
             if r['mode'] == 'Доходы':
                 base = max(r['revN'], 0)
                 raw_tax = r.get('raw_tax', round(base * r['usn'] / 100))
-                if org_cfg.get(r['org'], {}).get('consolidation', False):
-                    deduction = r.get('deduction', 0)
-                else:
-                    max_deduction = raw_tax * 0.5
-                    deduction = min(r['esn'], max_deduction)
+                deduction = r.get('deduction', 0)
+                if deduction == 0 and not org_cfg.get(r['org'], {}).get('consolidation', False):
+                    deduction = min(r['esn'], raw_tax * 0.5)
                 tax = round(raw_tax - deduction)
                 rate = f"{r['usn']}%"
-
-                log_info(f"[TAX] {r['org']} | Доходы | base={base:,.2f} | raw={raw_tax} | esn={r['esn']} → tax={tax}")
+                log_info(f"[TAX] {r['org']} | Доходы | raw={raw_tax} | ded={deduction} | tax={tax}")
 
             elif r['mode'] == 'Доходы-Расходы':
                 if org_cfg.get(r['org'], {}).get('consolidation', False):
