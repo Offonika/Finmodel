@@ -763,6 +763,7 @@ def fill_planned_indicators():
         # накопление прибыли по ОСНО: ключ 'consolidated' при консолидированном
         # учёте, иначе название организации
         rows_out, row_meta, cum_osno = [], [], {}
+        last_mode_group = {}
         for r in out:
             tax = base = 0
             rate = '0%'
@@ -817,13 +818,18 @@ def fill_planned_indicators():
                 if r['type'] == 'ИП':
                     # НДФЛ рассчитывается по накопленной прибыли.
                     # В режиме консолидации учитываем общий итог группы.
-                    group_key = ('consolidated'
-                                 if org_cfg.get(r['org'], {}).get('consolidation', False)
-                                 else r['org'])
-                    # Сбрасываем накопление при первом месяце после выхода
-                    # из режима ОСНО вне зависимости от наличия записи
-                    if r['prevM'] != 'ОСНО':
+                    group_key = (
+                        'consolidated'
+                        if org_cfg.get(r['org'], {}).get('consolidation', False)
+                        else r['org']
+                    )
+
+                    # --- переход на ОСНО: сбрасываем базу один раз для группы ---
+                    if last_mode_group.get(group_key) != 'ОСНО' and r['mode'] == 'ОСНО':
                         cum_osno[group_key] = 0
+                        log_info(
+                            f"[TAX] {r['org']} | ОСНО | group={group_key} → reset cumulative base"
+                        )
 
                     # --- ключ для накопления прибыли/убытка ---
                     # --- накопление полного EБIT (включая убытки) ---
@@ -858,6 +864,8 @@ def fill_planned_indicators():
                         log_info(
                             f"[TAX] {r['org']} | ОСНО | group={group_key} | prev={prev:,.2f} | base={base:,.2f} → tax={tax}"
                         )
+                    last_mode_group[group_key] = r['mode']
+                    last_mode_group[group_key] = r['mode']
                 else:
                     # Для юр. лиц ставка фиксированная с учётом накопленной базы
                     group_key = (
@@ -866,8 +874,11 @@ def fill_planned_indicators():
                         else r['org']
                     )
 
-                    if r['prevM'] != 'ОСНО':
+                    if last_mode_group.get(group_key) != 'ОСНО' and r['mode'] == 'ОСНО':
                         cum_osno[group_key] = 0
+                        log_info(
+                            f"[TAX] {r['org']} | ОСНО | group={group_key} → reset cumulative base"
+                        )
 
                     prev = cum_osno.get(group_key, 0)
                     base = r['ebit_tax']
