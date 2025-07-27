@@ -7,6 +7,7 @@ from datetime import datetime
 #  добавьте сразу после import-ов
 import argparse
 from pathlib import Path
+from scripts.sheet_utils import apply_sheet_settings
 
 def parse_cli():
     p = argparse.ArgumentParser(add_help=False)
@@ -369,21 +370,10 @@ def main():
     try:
         plan_ws = wb.sheets[SHEET_PLAN]
         plan_ws.clear()
-    except:
+    except Exception:
         plan_ws = wb.sheets.add(SHEET_PLAN)
-    try:
-        plan_ws.api.Tab.Color = 0x00C0FF
-        print("→ Цвет ярлыка #FFC000 установлен")
-    except Exception as e:
-        print(f"⚠️ Не удалось установить цвет ярлыка: {e}")
-    try:
-        sheet_count = len(wb.sheets)
-        pos = 12 if sheet_count >= 12 else sheet_count
-        if plan_ws.index != pos:
-            plan_ws.api.Move(Before=wb.sheets[pos].api)
-        print(f"→ Лист перемещён на позицию {pos}")
-    except Exception as e:
-        print(f"⚠️ Не удалось переместить лист: {e}")
+
+    apply_sheet_settings(wb, SHEET_PLAN)
 
     header = ['Организация','Артикул_WB','Артикул_поставщика','Предмет','Базовое кол-во','Плановая цена, ₽'] + \
              [f'Мес.{str(i+1).zfill(2)}' for i in range(12)] + ['Всего']

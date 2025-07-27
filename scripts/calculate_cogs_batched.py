@@ -4,25 +4,14 @@ import os
 import xlwings as xw
 import pandas as pd
 import math
-import logging, datetime, pathlib
+import logging
+import datetime
+import pathlib
+from scripts.sheet_utils import apply_sheet_settings
 
 # Налоговая списываемость закупочной цены в зависимости от типа логистики
 TAX_DEDUCTIBLE_BY_LOGISTIC = {"Карго": False, "Белая": True}
 RUS_TO_LAT = str.maketrans("АВЕКМНОРСТХ", "ABEKMHOPCTX")  # кир → лат
-# --- Вставь сразу после import'ов ---
-def rgb_to_excel_tab_color(r, g, b):
-    """Преобразует RGB в BGR-целое для ws.api.Tab.Color (Excel COM)."""
-    return b + g * 256 + r * 256 * 256
-
-def hex_to_excel_tab_color(hex_str):
-    """HEX #RRGGBB в Tab.Color (BGR-целое)."""
-    hex_str = hex_str.strip().lstrip('#')
-    if len(hex_str) != 6:
-        raise ValueError("HEX должен быть 6 символов, например, #92D050")
-    r = int(hex_str[0:2], 16)
-    g = int(hex_str[2:4], 16)
-    b = int(hex_str[4:6], 16)
-    return rgb_to_excel_tab_color(r, g, b)
 
 
 
@@ -196,19 +185,8 @@ def main():
         result_ws = wb.sheets[SHEET_RESULT] if SHEET_RESULT in [s.name for s in wb.sheets] \
                     else wb.sheets.add(SHEET_RESULT)
 
-        # --- Установка цвета ярлыка #92D050 (зелёный) ---
-        try:
-            result_ws.api.Tab.Color = hex_to_excel_tab_color("#92D050")  # <--- Вот так!
-        except Exception as e:
-            print(f"⚠️ Не удалось задать цвет ярлыка: {e}")
-
-        # --- Перемещение листа на 11-ю позицию ---
-        try:
-            if result_ws.index != 11:
-                result_ws.api.Move(Before=wb.sheets[10].api)
-                print("→ Лист 'РасчётСебестоимости' перемещён на позицию 11")
-        except Exception as e:
-            print(f"⚠️ Не удалось переместить лист: {e}")
+        # --- Применяем настройки листа (цвет и позицию) ---
+        apply_sheet_settings(wb, SHEET_RESULT)
 
             
      

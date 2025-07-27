@@ -4,6 +4,7 @@ import os
 import xlwings as xw
 
 from scripts.style_utils import autofit_safe
+from scripts.sheet_utils import apply_sheet_settings
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 EXCEL_PATH = os.path.join(BASE_DIR, 'excel', 'Finmodel.xlsm')
@@ -218,8 +219,7 @@ def main():
         # Кол-во, шт (4)
         sheet.range((2, 4), (last_row, 4)).api.NumberFormat = '0'
 
-        sheet.api.Tab.Color = 5296274  # зелёный
-        sheet.api.Move(Before=wb.sheets[10].api)  # сделать вторым листом
+        apply_sheet_settings(wb, SHEET_NAMES['result'])
         autofit_safe(sheet)
         sheet.api.Rows.AutoFit()
 # --- Закрепить только первую строку (шапку)
