@@ -106,3 +106,17 @@ def test_consolidated_osno_cumulative_base_equal_per_month():
         assert len(set(vals)) == 1
         expected = 300 if month == 1 else 400
         assert vals[0] == expected
+
+
+def test_yearly_tax_sum_matches_progressive():
+    rows = [
+        {'org': 'A', 'ebit_tax': 100, 'prevM': 'ОСНО'},
+        {'org': 'A', 'ebit_tax': 200, 'prevM': 'ОСНО'},
+        {'org': 'A', 'ebit_tax': 300, 'prevM': 'ОСНО'},
+    ]
+
+    res = calc_osno_tax(rows, consolidate=False)
+    total_tax = sum(r['tax'] for r in res)
+    total_base = sum(r['ebit_tax'] for r in rows)
+
+    assert total_tax == round(ndfl_prog(total_base))
