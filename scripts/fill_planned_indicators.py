@@ -817,31 +817,42 @@ def fill_planned_indicators():
             else:  # ОСНО
                 if r['type'] == 'ИП':
                     # НДФЛ рассчитывается по накопленной прибыли.
-                    # В режиме консолидации учитываем общий итог группы.
+                    # --- Ключ консолидации ---
                     group_key = (
                         'consolidated'
                         if org_cfg.get(r['org'], {}).get('consolidation', False)
                         else r['org']
                     )
 
-                    # --- переход на ОСНО: сбрасываем базу один раз для группы ---
-                    if last_mode_group.get(group_key) != 'ОСНО' and r['mode'] == 'ОСНО':
+                    # --- Переход на ОСНО — сброс накопленной базы ---
+                    if last_mode_group.get(group_key) != 'ОСНО':
                         cum_osno[group_key] = 0
                         log_info(
                             f"[TAX] {r['org']} | ОСНО | group={group_key} → reset cumulative base"
                         )
 
-                    # --- ключ для накопления прибыли/убытка ---
-                    # --- накопление полного EБIT (включая убытки) ---
+                    # --- Накопление прибыли (убытки учитываются) ---
                     prev = cum_osno.get(group_key, 0)
                     base = r['ebit_tax']
                     cum = prev + base
 
-                    taxable_prev = max(prev, 0)
-                    taxable_cum = max(prev + base, 0)
-                    tax = max(0, round(
-                        ndfl_prog(taxable_cum) - ndfl_prog(taxable_prev)
-                    ))  # дельта налога за месяц
+                    if cum <= 0:
+                        # Нет налога, переносим убыток вперёд
+                        tax = 0
+                        rate = '0%'
+                        log_info(
+                            f"[TAX] {r['org']} | ОСНО | group={group_key} | carry-forward: cum={cum:,.2f} → tax=0"
+                        )
+                    else:
+                        taxable_prev = max(prev, 0)
+                        taxable_cum = max(cum, 0)
+                        tax = max(0, round(ndfl_prog(taxable_cum) - ndfl_prog(taxable_prev)))
+                        rate = (
+                            f"{(tax / max(base, 1) * 100):.2f}%" if base > 0 else '0%'
+                        )
+                        log_info(
+                            f"[TAX] {r['org']} | ОСНО | group={group_key} | prev={prev:,.2f} | base={base:,.2f} | cum={cum:,.2f} → tax={tax}"
+                        )
 
                     cum_osno[group_key] = cum
                     osno_cum = cum_osno[group_key]
@@ -850,21 +861,6 @@ def fill_planned_indicators():
                         if org_cfg.get(r['org'], {}).get('consolidation', False)
                         else ''
                     )
-
-                    if osno_cum <= 0:
-                        tax = 0
-                        rate = '0%'
-                        log_info(
-                            f"[TAX] {r['org']} | ОСНО | group={group_key} | base={base:,.2f} → tax=0  (loss carry-forward)"
-                        )
-                    else:
-                        rate = (
-                            f"{(tax / max(base, 1) * 100):.2f}%" if base > 0 else '0%'
-                        )
-                        log_info(
-                            f"[TAX] {r['org']} | ОСНО | group={group_key} | prev={prev:,.2f} | base={base:,.2f} → tax={tax}"
-                        )
-                    last_mode_group[group_key] = r['mode']
                     last_mode_group[group_key] = r['mode']
                 else:
                     # Для юр. лиц ставка фиксированная с учётом накопленной базы

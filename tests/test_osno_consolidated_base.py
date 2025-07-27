@@ -167,3 +167,15 @@ def test_consolidated_transition_with_losses():
     assert res[0]['tax'] == 0
     assert res[1]['tax'] == 0
     assert res[1]['base'] == -100
+
+
+def test_individual_loss_carryforward():
+    rows = [
+        {'org': 'A', 'ebit_tax': -200, 'mode': 'ОСНО'},
+        {'org': 'A', 'ebit_tax': 100, 'mode': 'ОСНО'},
+        {'org': 'A', 'ebit_tax': 150, 'mode': 'ОСНО'},
+    ]
+
+    res = calc_osno_tax_new(rows, consolidate=False)
+
+    assert [r['tax'] for r in res] == [0, 0, round(ndfl_prog(50))]
