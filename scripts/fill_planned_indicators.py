@@ -794,18 +794,24 @@ def fill_planned_indicators():
                     base = tax_base_cons_cum.get(r['m'], 0)
                     revenue = cum_all[r['m']]
                     rate_val = r['usn'] / 100
-                    tax = round(calc_consolidated_min_tax(base, revenue, rate_val))
-                    if tax == round(revenue * 0.01):
+
+                    tax_choice = round(calc_consolidated_min_tax(base, revenue, rate_val))
+
+                    if tax_choice == round(revenue * 0.01):
+                        # Минималка выбрана консолидационно → применяем 1% от revN строки
+                        tax = round(r['revN'] * 0.01)
                         rate = '1%'
                         log_info(
-                            f"[TAX] {r['org']} | Доходы-Расходы | применена "
-                            f"минимальная ставка 1% от выручки ({tax:,.0f} ₽)"
+                            f"[TAX] {r['org']} | Д‑Р CONS | m={r['m']:02} | "
+                            f"минималка (1%) выбрана по группе; применено 1% от revN строки: "
+                            f"revN={r['revN']:,.2f} → tax={tax}"
                         )
                     else:
+                        tax = tax_choice
                         rate = f"{r['usn']}%"
                         log_info(
-                            f"[TAX] {r['org']} | Доходы-Расходы | база={base:,.2f} "
-                            f"| ставка={r['usn']}% → налог={tax}"
+                            f"[TAX] {r['org']} | Д‑Р CONS | m={r['m']:02} | "
+                            f"база={base:,.2f} | ставка={r['usn']}% → налог={tax}"
                         )
                 else:
                     if r.get('usn_forced_min', False):
