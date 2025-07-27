@@ -28,17 +28,22 @@ def calc_osno_tax(rows, consolidate=False):
 def calc_osno_tax_new(rows, consolidate=False):
     cum = {}
     last_mode = {}
+    peak = {}
     results = []
     for r in rows:
         key = 'consolidated' if consolidate else r['org']
         if last_mode.get(key) != 'ОСНО' and r.get('mode', 'ОСНО') == 'ОСНО':
             cum[key] = 0
+            peak[key] = 0
         prev = cum.get(key, 0)
         base = r['ebit_tax']
         total = prev + base
-        taxable_prev = max(prev, 0)
-        taxable_total = max(total, 0)
-        tax = max(0, round(ndfl_prog(taxable_total) - ndfl_prog(taxable_prev)))
+        pk = peak.get(key, 0)
+        if total > pk:
+            tax = round(ndfl_prog(total) - ndfl_prog(pk))
+            peak[key] = total
+        else:
+            tax = 0
         cum[key] = total
         last_mode[key] = r.get('mode', 'ОСНО')
         results.append({'org': r['org'], 'tax': tax, 'base': total})
@@ -179,3 +184,17 @@ def test_individual_loss_carryforward():
     res = calc_osno_tax_new(rows, consolidate=False)
 
     assert [r['tax'] for r in res] == [0, 0, round(ndfl_prog(50))]
+
+
+def test_no_double_tax_after_return_to_profit():
+    rows = [
+        {'org': 'A', 'ebit_tax': 100, 'mode': 'ОСНО'},
+        {'org': 'A', 'ebit_tax': 200, 'mode': 'ОСНО'},
+        {'org': 'A', 'ebit_tax': -500, 'mode': 'ОСНО'},
+        {'org': 'A', 'ebit_tax': 300, 'mode': 'ОСНО'},
+        {'org': 'A', 'ebit_tax': 250, 'mode': 'ОСНО'},
+    ]
+
+    res = calc_osno_tax_new(rows, consolidate=False)
+
+    assert [r['tax'] for r in res] == [13, 26, 0, 0, round(ndfl_prog(350) - ndfl_prog(300))]
