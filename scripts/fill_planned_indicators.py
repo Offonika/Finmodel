@@ -13,13 +13,40 @@
 # v1.8 — 26-07-2025: фикс расчёта налога при отрицательной
 #                     консолидированной базе после перехода на ОСНО
 
+# ---------- 1. Импорты и переменные окружения ----------------------------
 import os
+import sys
 import argparse
 import xlwings as xw
 import logging
 
-# ---------- Логирование в файл -------------------------------------
-LOG_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'log')
+# ---------- 2. Определение режима запуска --------------------------------
+IS_EXE = getattr(sys, 'frozen', False)
+if IS_EXE:
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# ---------- 3. Парсинг аргументов командной строки -----------------------
+def parse_args():
+    p = argparse.ArgumentParser(add_help=False,
+                                description='Пересчёт плановых показателей')
+    p.add_argument('-f', '--file', default='Finmodel.xlsm',
+                   help='Имя Excel-книги (по умолчанию Finmodel.xlsm)')
+    p.add_argument('-dm', '--debug-month', action='store_true',
+                   help='log every imported month')
+    args, _ = p.parse_known_args()       # игнорируем лишние флаги xlwings
+    global DEBUG_MONTH
+    DEBUG_MONTH = args.debug_month
+    return args
+
+ARGS = parse_args()
+
+# ---------- 4. Пути ------------------------------------------------------
+EXCEL_PATH = os.path.join(BASE_DIR, ARGS.file)
+
+# ---------- 5. Логирование в файл ----------------------------------------
+LOG_DIR = os.path.join(BASE_DIR, 'log')
 os.makedirs(LOG_DIR, exist_ok=True)
 LOG_PATH = os.path.join(LOG_DIR, 'fill_planned_indicators.log')
 
@@ -31,20 +58,21 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 def log_info(msg):
-    print(msg)               # ✔️ выводит в терминал
-    logging.info(msg)        # ✔️ записывает в log/fill_planned_indicators.log
+    print(msg)
+    logging.info(msg)
 
-# По умолчанию подавляем сообщения о месяце. Включается CLI-флагом
-# ``-dm``/``--debug-month``.
+# ---------- 6. Флаг отладки по месяцам -----------------------------------
 DEBUG_MONTH = False
+
+
 
 
 # ---------- 1. CLI --------------------------------------------------------
 def parse_args():
     p = argparse.ArgumentParser(add_help=False,
                                 description='Пересчёт плановых показателей')
-    p.add_argument('-f', '--file', default='excel/Finmodel.xlsm',
-                   help='Имя Excel-книги (по умолчанию excel/Finmodel.xlsm)')
+    p.add_argument('-f', '--file', default='Finmodel.xlsm',
+                   help='Имя Excel-книги (по умолчанию Finmodel.xlsm)')
     p.add_argument('-dm', '--debug-month', action='store_true',
                    help='log every imported month')
     args, _ = p.parse_known_args()       # игнорируем лишние флаги xlwings
@@ -54,9 +82,16 @@ def parse_args():
 ARGS = parse_args()
 
 # ---------- 2. Пути и имена листов ----------------------------------------
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_DIR = os.path.dirname(SCRIPT_DIR)
-EXCEL_PATH = os.path.join(PROJECT_DIR, ARGS.file)
+
+
+IS_EXE = getattr(sys, 'frozen', False)
+
+if IS_EXE:
+    BASE_DIR = os.path.dirname(sys.executable)
+else:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+
 
 
 SHEET_WB   = 'РасчётЭкономикиWB'
@@ -1135,19 +1170,31 @@ def fill_planned_indicators():
             # 3) создать новую ListObject без TotalsRow
             lo = sh.api.ListObjects.Add(1, lo_range, None, 1)
             lo.Name, lo.TableStyle = TABLE_NAME, TABLE_STYLE   # стиль Medium 7
-            fmt_fin = (
-                '_-* #,##0 ₽_-;'           # положительные
-                '[Red]_-* -#,##0 ₽_-;'     # отрицательные → красный минус
-                '_-* "-"?? ₽_-;'           # нули → тире
-                '_-@_-'                    # текст
-            )
+            fmt_fin = '#,##0 ₽;[Red]-#,##0 ₽;"-"'
 
 
+           
+            
             # 4) форматируем все ₽-колонки единым вызовом
             fmt = fmt_fin
             ruble_idx = [headers.index(c) + 1 for c in ruble_cols]
-            for i in ruble_idx:
-                lo.ListColumns(i).Range.NumberFormat = fmt
+
+            if not IS_EXE:
+                if lo.DataBodyRange is not None:
+                    for i in ruble_idx:
+                        try:
+                            col_range = lo.ListColumns(i).Range
+                            if col_range is not None:
+                                col_range.NumberFormat = fmt
+                            else:
+                                log_info(f"[FORMAT] Колонка {i} → Range is None, пропущено")
+                        except Exception as e:
+                            log_info(f"[FORMAT] Колонка {i} — ошибка: {e}")
+            else:
+                log_info("[FORMAT] Пропущено форматирование NumberFormat — запуск в .exe режиме")
+
+
+
 
         finally:
             wb.app.calculation     = calc

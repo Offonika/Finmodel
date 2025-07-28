@@ -12,3 +12,7 @@ venv/
 !excel/Finmodel.xlsm
 # логи
 *.log
+
+build/
+dist/
+*.spec
