@@ -3,6 +3,7 @@
 import argparse
 import os
 import xlwings as xw
+from pathlib import Path
 from collections import defaultdict
 from fill_planned_indicators import (
     open_wb,             # открыть/подсоединиться к Excel-книге
@@ -17,11 +18,15 @@ def normalize(s):
 
 # CLI
 PAR = argparse.ArgumentParser(description="Scenario profit calculator")
-PAR.add_argument("-f", "--file", default="excel/Finmodel.xlsm", help="Excel‑workbook")
+PAR.add_argument("-f", "--file", default="Finmodel.xlsm", help="Excel workbook")
 ARGS = PAR.parse_args()
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-EXCEL    = os.path.join(BASE_DIR, ARGS.file)
+IS_EXE = getattr(sys, "frozen", False)
+BASE_DIR = Path(sys.executable if IS_EXE else __file__).resolve().parent
+PROJECT_DIR = BASE_DIR.parent
+EXCEL_PATH = PROJECT_DIR / "excel" / ARGS.file
+if not EXCEL_PATH.exists():
+    raise FileNotFoundError(f"Workbook not found: {EXCEL_PATH}")
 
 # Листы
 SHEET_WB   = "РасчётЭкономикиWB"
