@@ -16,3 +16,6 @@ venv/
 build/
 dist/
 *.spec
+
+# coverage
+.coverage
