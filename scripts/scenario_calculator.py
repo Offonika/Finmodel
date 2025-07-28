@@ -24,7 +24,9 @@ ARGS = PAR.parse_args()
 IS_EXE = getattr(sys, "frozen", False)
 BASE_DIR = Path(sys.executable if IS_EXE else __file__).resolve().parent
 PROJECT_DIR = BASE_DIR.parent
-EXCEL_PATH = PROJECT_DIR / "excel" / ARGS.file
+
+EXCEL_PATH = PROJECT_DIR / ARGS.file
+
 if not EXCEL_PATH.exists():
     raise FileNotFoundError(f"Workbook not found: {EXCEL_PATH}")
 

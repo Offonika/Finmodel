@@ -104,7 +104,8 @@ xlwings addin install
 
 3.1 Настройка xlwings‑конфигурации
 
-Откройте файл excel/Finmodel.xlsm.
+Откройте файл Finmodel.xlsm в корне проекта.
+
 
 Вкладка xlwings → Interpreter.
 

@@ -42,7 +42,9 @@ def parse_args():
 ARGS = parse_args()
 
 # ---------- 4. Пути ------------------------------------------------------
-EXCEL_PATH = PROJECT_DIR / "excel" / ARGS.file
+
+EXCEL_PATH = PROJECT_DIR / ARGS.file
+
 
 # ---------- 5. Логирование в файл ----------------------------------------
 LOG_DIR = PROJECT_DIR / 'log'
