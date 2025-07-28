@@ -19,13 +19,12 @@ import sys
 import argparse
 import xlwings as xw
 import logging
+from pathlib import Path
 
 # ---------- 2. Определение режима запуска --------------------------------
 IS_EXE = getattr(sys, 'frozen', False)
-if IS_EXE:
-    BASE_DIR = os.path.dirname(sys.executable)
-else:
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+BASE_DIR = Path(sys.executable if IS_EXE else __file__).resolve().parent
+PROJECT_DIR = BASE_DIR.parent
 
 # ---------- 3. Парсинг аргументов командной строки -----------------------
 def parse_args():
@@ -43,15 +42,15 @@ def parse_args():
 ARGS = parse_args()
 
 # ---------- 4. Пути ------------------------------------------------------
-EXCEL_PATH = os.path.join(BASE_DIR, ARGS.file)
+EXCEL_PATH = PROJECT_DIR / ARGS.file
 
 # ---------- 5. Логирование в файл ----------------------------------------
-LOG_DIR = os.path.join(BASE_DIR, 'log')
+LOG_DIR = PROJECT_DIR / 'log'
 os.makedirs(LOG_DIR, exist_ok=True)
-LOG_PATH = os.path.join(LOG_DIR, 'fill_planned_indicators.log')
+LOG_PATH = LOG_DIR / 'fill_planned_indicators.log'
 
 logging.basicConfig(
-    filename=LOG_PATH,
+    filename=str(LOG_PATH),
     filemode='w',
     level=logging.INFO,
     format='[%(asctime)s] %(message)s',
@@ -67,32 +66,8 @@ DEBUG_MONTH = False
 
 
 
-# ---------- 1. CLI --------------------------------------------------------
-def parse_args():
-    p = argparse.ArgumentParser(add_help=False,
-                                description='Пересчёт плановых показателей')
-    p.add_argument('-f', '--file', default='Finmodel.xlsm',
-                   help='Имя Excel-книги (по умолчанию Finmodel.xlsm)')
-    p.add_argument('-dm', '--debug-month', action='store_true',
-                   help='log every imported month')
-    args, _ = p.parse_known_args()       # игнорируем лишние флаги xlwings
-    global DEBUG_MONTH
-    DEBUG_MONTH = args.debug_month
-    return args
-ARGS = parse_args()
 
 # ---------- 2. Пути и имена листов ----------------------------------------
-
-
-IS_EXE = getattr(sys, 'frozen', False)
-
-if IS_EXE:
-    BASE_DIR = os.path.dirname(sys.executable)
-else:
-    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-
-
 
 SHEET_WB   = 'РасчётЭкономикиWB'
 SHEET_OZON = 'РасчетЭкономикиОзон'
@@ -113,6 +88,8 @@ def open_wb():
         wb, app = xw.Book.caller(), None
         log_info(f'→ Excel-режим: {wb.fullname}')
     except Exception:       # запуск из терминала
+        if not EXCEL_PATH.exists():
+            raise FileNotFoundError(f"Workbook not found: {EXCEL_PATH}")
         app = xw.App(visible=False, add_book=False)
         wb  = app.books.open(EXCEL_PATH, read_only=False)
         log_info(f'→ Консоль-режим: {EXCEL_PATH}')
