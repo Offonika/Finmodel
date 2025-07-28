@@ -106,6 +106,7 @@ xlwings addin install
 
 Откройте файл Finmodel.xlsm в корне проекта.
 
+
 Вкладка xlwings → Interpreter.
 
 Interpreter – путь к
