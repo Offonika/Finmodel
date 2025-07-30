@@ -1214,6 +1214,11 @@ def fill_planned_indicators():
 
 # ---------- 5. Точка входа -----------------------------------------------
 
-if __name__ == '__main__':
+def main():
+    """Entry point for xlwings and console execution."""
     fill_planned_indicators()
+
+
+if __name__ == '__main__':
+    main()
 
