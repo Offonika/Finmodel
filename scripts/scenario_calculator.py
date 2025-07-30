@@ -249,7 +249,7 @@ def main():
         sh = wb.sheets.add(SHEET_RES)
         sh.range(1, 1).value = ['Сценарий', 'Чистая прибыль, ₽']
         sh.range(2, 1).value = summary
-        sh.range(2, 2).number_format = '#,##0 ₽'
+        sh.range(2, 2).api.NumberFormat = '#,##0 ₽'
 
         print(f"✔️ Итог записан на лист '{SHEET_RES}'")
     finally:
