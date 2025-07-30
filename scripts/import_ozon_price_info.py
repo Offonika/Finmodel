@@ -57,21 +57,6 @@ def get_ozon_credentials(settings_ws):
         raise Exception('❌ Не найдено ни одной строки с Client-Id и Token_Ozon')
     return found[['Client-Id', 'Token_Ozon']].dropna().values.tolist()
 
-    print('=== Строка для API:')
-    print(row)
-
-    # --- КОРРЕКТНО ПРИВОДИМ К СТРОКЕ ---
-    client_id = str(row['Client-Id']).strip()
-    # если Client-Id float и выглядит как 142768.0 -> привести к 142768
-    if client_id.endswith('.0'):
-        client_id = client_id[:-2]
-    api_key   = str(row['Token_Ozon']).strip()
-
-    print(f"=== Итог: client_id='{client_id}', api_key (first 10)='{api_key[:10]}' ...")
-    if not client_id or not api_key:
-        raise Exception('❌ Не заданы Client-Id или Token_Ozon')
-    return client_id, api_key
-
 def main():
     print("=== Старт import_ozon_price_info ===")
     wb, app = get_workbook()
