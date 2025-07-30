@@ -1,7 +1,6 @@
 from pathlib import Path
 import sys
 sys.path.append(str(Path(__file__).resolve().parents[1] / 'scripts'))
-import types
 from sheet_utils import apply_sheet_settings, hex_to_excel_tab_color
 
 class FakeTab:

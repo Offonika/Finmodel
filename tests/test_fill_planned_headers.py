@@ -1,6 +1,5 @@
 from pathlib import Path
 import sys
-import pandas as pd
 
 sys.path.append(str(Path(__file__).resolve().parents[1] / "scripts"))
 from fill_planned_indicators import build_idx, find_key, parse_money

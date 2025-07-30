@@ -3,7 +3,6 @@
 import os
 import xlwings as xw
 import pandas as pd
-import math
 import logging
 import datetime
 import pathlib
@@ -75,7 +74,8 @@ def get_workbook():
 
 def safe_float(val):
     try:
-        if pd.isna(val): return 0.0
+        if pd.isna(val):
+            return 0.0
         return float(str(val).replace(',', '.').replace(' ', '').replace(' ', ''))
     except Exception:
         return 0.0
@@ -83,21 +83,22 @@ def safe_float(val):
 def read_settings(ws):
     df = ws.range(1, 1).expand().options(pd.DataFrame, header=1, index=False).value
     df = df.loc[:, ~df.columns.duplicated()]  # Убираем дубликаты
-    idx = {h: i for i, h in enumerate(df.columns)}
     vals = df.values.tolist()
     params = {}
     for row in vals:
         param = str(row[0])
         val = row[1] if len(row) > 1 else None
-        if not param: break
+        if not param:
+            break
         params[param] = val
 
     def get_num(name, default=0):
         v = params.get(name, default)
-        if v is None: return default
+        if v is None:
+            return default
         try:
             return float(str(v).replace(',', '.').replace('%','').replace(' ',''))
-        except:
+        except Exception:
             return default
 
     return {
@@ -121,7 +122,7 @@ def get_progress(ws):
     try:
         val = ws.range(PROGRESS_CELL).value
         return int(val) if val else 1
-    except:
+    except Exception:
         return 1
 
 def set_progress(ws, idx):
@@ -197,7 +198,8 @@ def main():
             'Себестоимость_руб', 'Себестоимость_без_НДС_руб', 'Входящий_НДС_руб',
             'СебестоимостьУпр', 'СебестоимостьНалог', 'СебестоимостьНалог_без_НДС'
         ]
-        result_ws.clear();  result_ws.range(1,1).value = header
+        result_ws.clear()
+        result_ws.range(1, 1).value = header
         first_free = 2
 
         # 6. Основной цикл по товарам чанками
@@ -304,12 +306,15 @@ def main():
         except Exception as e:
             log(f'Не удалось применить формат: {e}', 'warning')
         result_ws.autofit()
-        log("Готово, файл сохранён"); print("✓ Готово!")
+        log("Готово, файл сохранён")
+        print("✓ Готово!")
 
     finally:                           # ───── закрываем Excel, если нужен ─────
         if app is not None:
-            wb.save(); wb.close()
-            app.quit(); del app
+            wb.save()
+            wb.close()
+            app.quit()
+            del app
             log("Excel закрыт корректно")
 
 # ------------------------------------------

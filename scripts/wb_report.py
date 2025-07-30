@@ -3,6 +3,7 @@ import requests
 import datetime
 import time
 from collections import Counter
+import pandas as pd
 
 SHEET_SETTINGS  = "Настройки"
 SHEET_ORGS      = "НастройкиОрганизаций"
@@ -146,7 +147,6 @@ def drop_existing_table(ws, table_name="WbFactsTable"):
             tbl.api.Delete()
             return
 
-import pandas as pd
 def _norm(val: str) -> str:
     """
     Нормализует числовые/строковые коды:
@@ -217,7 +217,7 @@ def import_wb_detailed_reports(wb=None):
             
     log_step(ws_log, f"Найдены ранее загруженные строки: {len(existing_keys)}")
 
-    results, unique_reports = [], set()
+    results = []
     doc_types_counter = Counter()
 
     for row_idx, row in enumerate(org_data[1:], start=2):

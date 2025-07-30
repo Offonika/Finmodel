@@ -48,7 +48,8 @@ def main():
         print(f'→ Лист {SHEET_SALES} считан, строк: {len(df)}')
     except Exception as e:
         print(f'❌ Ошибка: не найден лист {SHEET_SALES} или не удалось считать данные\n{e}')
-        if app: app.quit()
+        if app:
+            app.quit()
         return
 
     # 2. Убираем строки "Итого"
@@ -89,7 +90,7 @@ def main():
         rev_ws = wb.sheets[SHEET_REVENUE]
         rev_ws.clear()
         print(f'→ Лист {SHEET_REVENUE} очищен')
-    except:
+    except Exception:
         rev_ws = wb.sheets.add(SHEET_REVENUE)
         print(f'→ Лист {SHEET_REVENUE} создан')
     # --- Цвет ярлыка и позиция листа ---
@@ -131,7 +132,9 @@ def main():
     else:
         print('Нет данных для вывода — таблица не создаётся')
 
-    if app: wb.save(); app.quit()
+    if app:
+        wb.save()
+        app.quit()
     print('=== Скрипт успешно завершён ===')
 
 if __name__ == '__main__':

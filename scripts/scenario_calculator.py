@@ -1,15 +1,14 @@
 # scenario_calculator.py – «Что‑если»-модуль к fill_planned_indicators.py
 
 import argparse
-import os
-import xlwings as xw
+import sys
 from pathlib import Path
 from collections import defaultdict
 from fill_planned_indicators import (
     open_wb,             # открыть/подсоединиться к Excel-книге
     parse_money, parse_month,
-    nds_rate, ndfl_prog,
-    build_idx, read_rows
+    nds_rate,
+    read_rows
 )
 
 def normalize(s):
@@ -91,8 +90,10 @@ def group_records(raw):
         if key not in groups:
             groups[key] = dict(org=org, month=month, rev=0, mp=0, cr=0, cn=0)
         g = groups[key]
-        g['rev'] += rev; g['mp']  += mp
-        g['cr']  += cr;  g['cn'] += cn
+        g['rev'] += rev
+        g['mp'] += mp
+        g['cr'] += cr
+        g['cn'] += cn
     return list(groups.values())
 
 def make_cfg_dict(cfg_rows):
@@ -255,7 +256,8 @@ def main():
     finally:
         if wb:
             wb.save()
-            if app: app.quit()
+            if app:
+                app.quit()
 
 if __name__ == '__main__':
     main()

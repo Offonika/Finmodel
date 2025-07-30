@@ -1,6 +1,5 @@
 # import_ozon_price_info.py
 
-import os
 import requests
 import xlwings as xw
 import pandas as pd
