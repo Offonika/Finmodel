@@ -21,6 +21,10 @@ import xlwings as xw
 import logging
 from pathlib import Path
 
+# Флаг отладки по месяцам. Значение может быть переопределено
+# через аргументы командной строки в ``parse_args``.
+DEBUG_MONTH = False
+
 # ---------- 2. Определение режима запуска --------------------------------
 IS_EXE = getattr(sys, 'frozen', False)
 BASE_DIR = Path(sys.executable if IS_EXE else __file__).resolve().parent
@@ -63,7 +67,7 @@ def log_info(msg):
     logging.info(msg)
 
 # ---------- 6. Флаг отладки по месяцам -----------------------------------
-DEBUG_MONTH = False
+# значение устанавливается в ``parse_args``
 
 
 
