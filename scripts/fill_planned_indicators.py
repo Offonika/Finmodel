@@ -1193,9 +1193,15 @@ def fill_planned_indicators():
         for col in ruble_cols:
             idx = headers.index(col) + 1
             letter = col_name(idx)
-            sh.range(total_row, idx).formula = \
-                f"=SUBTOTAL(109,{letter}$2:{letter}${last_row})"
-            sh.range(total_row, idx).api.NumberFormat = fmt
+            cell = sh.range(total_row, idx)
+            cell.formula = f"=SUBTOTAL(109,{letter}$2:{letter}${last_row})"
+            if not IS_EXE:
+                try:
+                    cell.api.NumberFormat = fmt
+                except Exception as e:
+                    log_info(f"[FORMAT] Итоговая колонка {idx} — ошибка: {e}")
+            else:
+                log_info("[FORMAT] Пропущено формат NumberFormat для итогов — запуск в .exe режиме")
 
 
         # ------ ярлык и позиция листа ----------------------------------
