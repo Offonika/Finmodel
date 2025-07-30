@@ -5,11 +5,11 @@ import requests
 import xlwings as xw
 import pandas as pd
 from time import sleep
+from pathlib import Path
 from scripts.sheet_utils import apply_sheet_settings
 
 
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-EXCEL_PATH = os.path.join(BASE_DIR, 'excel', 'Finmodel.xlsm')
+EXCEL_PATH = str(Path(__file__).resolve().parents[1] / 'Finmodel.xlsm')
 
 SHEET_SETTINGS = 'НастройкиОрганизаций'
 SHEET_PRICES   = 'ЦеныОзон'
