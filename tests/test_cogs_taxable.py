@@ -1,4 +1,3 @@
-import pandas as pd
 
 TAX_DEDUCTIBLE_BY_LOGISTIC = {'Карго': False, 'Белая': True}
 

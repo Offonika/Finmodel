@@ -1,6 +1,5 @@
 # update_plan_sales.py
 
-import os
 import xlwings as xw
 import pandas as pd
 from datetime import datetime
@@ -32,7 +31,7 @@ def get_workbook():
     try:
         wb = xw.Book.caller()
         app = None
-        print(f'→ Запуск из Excel-макроса')
+        print('→ Запуск из Excel-макроса')
     except Exception:
         app = xw.App(visible=False)
         wb = app.books.open(EXCEL_PATH)
@@ -95,18 +94,22 @@ def main():
         print('→ Листы найдены')
     except Exception as e:
         print('❌ Ошибка загрузки листов:', e)
-        if app: app.quit()
+        if app:
+            app.quit()
         return
 
     # 1. Период усреднения
     settings = settings_ws.range(1,1).expand().options(pd.DataFrame, header=1, index=False).value
     dt_from = dt_to = None
     for _, row in settings.iterrows():
-        if str(row.iloc[0]).strip() == 'Период с': dt_from = parse_date(row.iloc[1])
-        if str(row.iloc[0]).strip() == 'Период по': dt_to   = parse_date(row.iloc[1])
+        if str(row.iloc[0]).strip() == 'Период с':
+            dt_from = parse_date(row.iloc[1])
+        if str(row.iloc[0]).strip() == 'Период по':
+            dt_to = parse_date(row.iloc[1])
     if not dt_from or not dt_to:
         print('❌ Не заданы "Период с/по" в Настройках')
-        if app: app.quit()
+        if app:
+            app.quit()
         return
     months_cnt = (dt_to.year-dt_from.year)*12 + (dt_to.month-dt_from.month) + 1
     print(f'→ Период: {dt_from.strftime("%d.%m.%Y")} - {dt_to.strftime("%d.%m.%Y")} ({months_cnt} мес.)')
@@ -187,8 +190,6 @@ def main():
 
     # Индексы
     idx_prod = {h: i for i, h in enumerate(products.columns)}
-    idx_facts = {h: i for i, h in enumerate(facts.columns)}
-    idx_price = {h: i for i, h in enumerate(prices.columns)}
 
     # 4. Подготовка списка товаров (ключ: Артикул_WB)
     prod_list = []
@@ -239,7 +240,6 @@ def main():
 
     # 7. Сбор продаж по месяцам (факты только текущий год)
     col_artwb  = 'Артикул_WB'
-    col_org    = 'Организация'
     col_date   = 'Дата'
     col_sold   = 'Итого_продано'
     qty_map = {norm_key(p['artwb']): [0]*12 for p in prod_list}
@@ -260,7 +260,8 @@ def main():
         key = norm_key(row[col_artwb])
         if pd.isna(d) or d.year != year_plan:
             continue
-        if key not in qty_map: continue
+        if key not in qty_map:
+            continue
 
         sold_raw = row[col_sold]
         sold = safe_num(sold_raw)
@@ -392,7 +393,9 @@ def main():
     else:
         print('Нет строк для вывода — таблица не создаётся')
 
-    if app: wb.save(); app.quit()
+    if app:
+        wb.save()
+        app.quit()
     print('=== Скрипт успешно завершён ===')
 
 if __name__ == '__main__':

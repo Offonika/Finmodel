@@ -1,6 +1,8 @@
 import xlwings as xw
 import requests
-import sys, os
+import sys
+import os
+import time
 print("==== PYTHONPATH ====")
 print(sys.path)
 print("==== WORKDIR ====")
@@ -88,7 +90,7 @@ def main():
                 resp = requests.post(API_URL, json=payload, headers=headers, timeout=30)
             except Exception as e:
                 print(f'❌ Сетевая ошибка: {e}, попытка {page}')
-                import time; time.sleep(10)
+                time.sleep(10)
                 continue
 
             print(f'HTTP {resp.status_code}')

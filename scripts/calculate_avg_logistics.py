@@ -25,7 +25,8 @@ def get_workbook():
 
 def safe_float(val):
     try:
-        if pd.isna(val): return 0.0
+        if pd.isna(val):
+            return 0.0
         return float(str(val).replace(',', '.').replace('\xa0', '').replace(' ', ''))
     except Exception:
         return 0.0
@@ -40,7 +41,8 @@ def main():
         print(f'→ Прочитано строк из {SHEET_SOURCE}: {len(df)}')
     except Exception as e:
         print(f'❌ Нет листа {SHEET_SOURCE}: {e}')
-        if app: app.quit()
+        if app:
+            app.quit()
         return
 
     # Проверяем нужные колонки
@@ -52,7 +54,8 @@ def main():
     for c in required:
         if c not in df.columns:
             print(f'❌ Нет колонки {c} в {SHEET_SOURCE}')
-            if app: app.quit()
+            if app:
+                app.quit()
             return
 
     log_fields = [
@@ -74,7 +77,8 @@ def main():
     for _, row in df.iterrows():
         qty = safe_float(row["ПроданоШт"])
         full_log = safe_float(row["Логистика"])
-        if qty == 0: continue
+        if qty == 0:
+            continue
         total_qty += qty
         total_log += full_log
 
@@ -115,7 +119,7 @@ def main():
         out_ws = wb.sheets[SHEET_OUT]
         out_ws.clear()
         print(f'→ Лист {SHEET_OUT} очищен')
-    except:
+    except Exception:
         out_ws = wb.sheets.add(SHEET_OUT)
         print(f'→ Лист {SHEET_OUT} создан')
 
@@ -132,7 +136,9 @@ def main():
     out_ws.api.Rows(1).Font.Bold = True
 
     print('=== Скрипт успешно завершён ===')
-    if app: wb.save(); app.quit()
+    if app:
+        wb.save()
+        app.quit()
 
 if __name__ == '__main__':
     main()

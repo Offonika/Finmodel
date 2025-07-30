@@ -1,4 +1,3 @@
-import pandas as pd
 import xlwings as xw
 
 def write_to_excel(df, filename, sheet_name='Sheet1'):

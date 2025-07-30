@@ -2,15 +2,14 @@
 
 import warnings
 from collections import defaultdict
-
-warnings.filterwarnings("ignore", category=UserWarning)
 import requests
 import pandas as pd
-import glob
-import os            # ← импорт был здесь
+import os
 import re
 import xlwings as xw
 from datetime import datetime
+
+warnings.filterwarnings("ignore", category=UserWarning)
 
 def get_workbook():
     try:
