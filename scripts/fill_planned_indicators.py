@@ -1168,7 +1168,7 @@ def fill_planned_indicators():
                         try:
                             col_range = lo.ListColumns(i).Range
                             if col_range is not None:
-                                col_range.NumberFormat = fmt
+                                col_range.api.NumberFormat = fmt
                             else:
                                 log_info(f"[FORMAT] Колонка {i} → Range is None, пропущено")
                         except Exception as e:
@@ -1195,7 +1195,7 @@ def fill_planned_indicators():
             letter = col_name(idx)
             sh.range(total_row, idx).formula = \
                 f"=SUBTOTAL(109,{letter}$2:{letter}${last_row})"
-            sh.range(total_row, idx).number_format = fmt
+            sh.range(total_row, idx).api.NumberFormat = fmt
 
 
         # ------ ярлык и позиция листа ----------------------------------
