@@ -90,7 +90,7 @@ def main():
         # Форматирование процентов
         last_row = len(out)
         if last_row > 1:
-            sht_tar.range((2, 3), (last_row, 3)).number_format = '0.00%'
+            sht_tar.range((2, 3), (last_row, 3)).api.NumberFormat = '0.00%'
         print("→ Данные записаны и отформатированы")
 
         wb.save()

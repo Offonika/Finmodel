@@ -1195,7 +1195,7 @@ def fill_planned_indicators():
             letter = col_name(idx)
             sh.range(total_row, idx).formula = \
                 f"=SUBTOTAL(109,{letter}$2:{letter}${last_row})"
-            sh.range(total_row, idx).number_format = fmt
+            sh.range(total_row, idx).api.NumberFormat = fmt
 
 
         # ------ ярлык и позиция листа ----------------------------------

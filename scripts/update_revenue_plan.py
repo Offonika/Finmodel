@@ -120,7 +120,7 @@ def main():
         for c in range(4, total_col+1):
             col_letter = xw.utils.col_name(c)
             rev_ws.range((sum_row, c)).formula = f'=SUM({col_letter}2:{col_letter}{last_row})'
-            rev_ws.range((sum_row, c)).number_format = '#,##0 ₽'
+            rev_ws.range((sum_row, c)).api.NumberFormat = '#,##0 ₽'
 
         # Оформляем как умную таблицу
         table_range = rev_ws.range((1,1), (sum_row, total_col))
