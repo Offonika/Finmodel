@@ -1,21 +1,29 @@
-# кэш и временные
+# Кэш и временные файлы Python
 *.py[cod]
-__pycache__/
 *.pyo
+__pycache__/
+
 # IDE
 .idea/
 .vscode/
-# виртуальное окружение
-venv/
-# данные Excel
-*.xlsm
-!Finmodel.xlsm
-# логи
-*.log
 
+# Виртуальное окружение
+venv/
+
+# Исключаем все Excel-файлы .xlsm
+*.xlsm
+
+# ...кроме шаблона
+!excel/Finmodel_Template.xlsm
+
+# Логи
+*.log
+log/
+
+# PyInstaller временные файлы
 build/
 dist/
 *.spec
 
-# coverage
+# Coverage
 .coverage
