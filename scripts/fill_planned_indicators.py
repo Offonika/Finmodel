@@ -95,6 +95,7 @@ def open_wb():
         log_info(f'→ Excel-режим: {wb.fullname}')
     except Exception:       # запуск из терминала
         if not EXCEL_PATH.exists():
+            log_info(f"❌ Workbook not found: {EXCEL_PATH}")
             raise FileNotFoundError(f"Workbook not found: {EXCEL_PATH}")
         app = xw.App(visible=False, add_book=False)
         wb  = app.books.open(EXCEL_PATH, read_only=False)
@@ -1222,7 +1223,12 @@ def fill_planned_indicators():
 
 def main():
     """Entry point for xlwings and console execution."""
-    fill_planned_indicators()
+    log_info('=== Запуск fill_planned_indicators ===')
+    try:
+        fill_planned_indicators()
+    except Exception as e:
+        logging.exception('Ошибка выполнения: %s', e)
+        raise
 
 
 if __name__ == '__main__':
