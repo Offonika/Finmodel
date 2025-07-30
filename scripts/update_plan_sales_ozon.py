@@ -6,8 +6,10 @@ import pandas as pd
 import re
 from datetime import datetime
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-EXCEL_PATH = os.path.join(BASE_DIR, 'excel', 'Finmodel.xlsm')
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+EXCEL_PATH = str(BASE_DIR.parent / 'Finmodel.xlsm')
 
 SHEET_SETTINGS = 'Настройки'
 SHEET_SEASON   = 'Сезонность'
