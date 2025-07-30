@@ -533,7 +533,14 @@ def main():
 
 
         # ── 6. Запись сводных листов ───────────────────────────────────
- 
+
+        sheet_name_sum = 'Свод'
+        sht_sum = (
+            wb.sheets[sheet_name_sum]
+            if sheet_name_sum in [s.name for s in wb.sheets]
+            else wb.sheets.add(sheet_name_sum)
+        )
+        sht_sum.clear()
 
         # зелёный ярлык и позиция
         try:
