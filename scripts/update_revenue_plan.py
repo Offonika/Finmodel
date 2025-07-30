@@ -117,10 +117,14 @@ def main():
         rev_ws.range((sum_row, 1)).value = 'Итого'
 
         # Формулы для итогов по каждому месяцу и "Всего"
-        for c in range(4, total_col+1):
+        for c in range(4, total_col + 1):
             col_letter = xw.utils.col_name(c)
-            rev_ws.range((sum_row, c)).formula = f'=SUM({col_letter}2:{col_letter}{last_row})'
-            rev_ws.range((sum_row, c)).api.NumberFormat = '#,##0 ₽'
+            cell = rev_ws.range((sum_row, c))
+            cell.formula = f'=SUM({col_letter}2:{col_letter}{last_row})'
+            try:
+                cell.api.NumberFormat = '#,##0 ₽'
+            except Exception as e:
+                print(f'[FORMAT] Колонка {c} — ошибка: {e}')
 
         # Оформляем как умную таблицу
         table_range = rev_ws.range((1,1), (sum_row, total_col))

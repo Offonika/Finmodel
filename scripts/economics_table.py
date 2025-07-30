@@ -89,7 +89,10 @@ def _format_numeric_columns(ws_target, columns, num_format="0"):
             continue
         col_idx = header_names.index(col_name) + 1
         rng = tbl.ListColumns(col_idx).DataBodyRange
-        rng.NumberFormat = num_format
+        try:
+            rng.NumberFormat = num_format
+        except Exception as e:
+            print(f'[FORMAT] {col_name}: {e}')
 
 def _format_table_rub(ws_target):
     rub_cols = [
@@ -146,7 +149,10 @@ def _add_totals_row(ws_target, df: pd.DataFrame) -> None:
         cell = ws_target.range((total_row, idx))
         cell.formula = formula
         cell.api.Font.Bold = True
-        cell.api.NumberFormat = "#,##0 ₽"
+        try:
+            cell.api.NumberFormat = "#,##0 ₽"
+        except Exception as e:
+            print(f'[FORMAT] Итоговая колонка {idx}: {e}')
 
 
 def _drop_totals(df: pd.DataFrame, check_cols=("Артикул_поставщика", "SKU", "Организация")) -> pd.DataFrame:

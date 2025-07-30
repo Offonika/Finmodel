@@ -300,7 +300,11 @@ def main():
             for col_name in rub_cols:
                 if col_name in headers:
                     idx = headers.index(col_name) + 1
-                    tbl.ListColumns(idx).Range.NumberFormat = fmt
+                    rng = tbl.ListColumns(idx).Range
+                    try:
+                        rng.NumberFormat = fmt
+                    except Exception as e:
+                        log(f'Колонка {idx} формат не применён: {e}', 'warning')
         except Exception as e:
             log(f'Не удалось применить формат: {e}', 'warning')
         result_ws.autofit()

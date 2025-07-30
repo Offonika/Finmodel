@@ -202,7 +202,11 @@ def load_wb_prices_by_size_xlwings(wb=None):
     col_nmID = HEADER_DICT['nmID']
     col_idx = HEADERS_RU.index(col_nmID) + 1
     last_row = output_sh.range('A1').end('down').row
-    output_sh.range((2, col_idx), (last_row, col_idx)).api.NumberFormat = "@"
+    rng = output_sh.range((2, col_idx), (last_row, col_idx))
+    try:
+        rng.api.NumberFormat = "@"
+    except Exception as e:
+        log(f'[FORMAT] Ошибка: {e}')
 
 def main():
     log("=== Старт загрузки цен WB по размерам ===")

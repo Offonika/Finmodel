@@ -132,7 +132,11 @@ def main():
 
     if allCards:
         sht_prod.range((2, 1)).value = allCards
-        sht_prod.range('B:B').api.NumberFormat = '@'
+        rng = sht_prod.range('B:B')
+        try:
+            rng.api.NumberFormat = '@'
+        except Exception as e:
+            print(f'[FORMAT] Ошибка: {e}')
         print(f'✅ Добавлено новых карточек: {len(allCards)}')
     else:
         print('ℹ️ Новых карточек не найдено')

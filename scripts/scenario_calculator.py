@@ -249,7 +249,14 @@ def main():
         sh = wb.sheets.add(SHEET_RES)
         sh.range(1, 1).value = ['Сценарий', 'Чистая прибыль, ₽']
         sh.range(2, 1).value = summary
-        sh.range(2, 2).api.NumberFormat = '#,##0 ₽'
+        cell = sh.range(2, 2)
+        if not IS_EXE:
+            try:
+                cell.api.NumberFormat = '#,##0 ₽'
+            except Exception as e:
+                print(f'[FORMAT] Ошибка: {e}')
+        else:
+            print('[FORMAT] Пропущено форматирование NumberFormat — запуск в .exe режиме')
 
         print(f"✔️ Итог записан на лист '{SHEET_RES}'")
     finally:

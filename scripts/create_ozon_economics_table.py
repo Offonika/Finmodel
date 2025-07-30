@@ -212,12 +212,24 @@ def main():
 
         # Форматы
         # Комиссия % (6-й столбец)
-        sheet.range((2, 6), (last_row, 6)).api.NumberFormat = '0.00"%"'
+        rng_pct = sheet.range((2, 6), (last_row, 6))
+        try:
+            rng_pct.api.NumberFormat = '0.00"%"'
+        except Exception as e:
+            print(f'[FORMAT] Ошибка столбца 6: {e}')
         # Рубли (5,7-22)
         for c in [5, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22]:
-            sheet.range((2, c), (last_row, c)).api.NumberFormat = '#,##0 ₽'
+            rng = sheet.range((2, c), (last_row, c))
+            try:
+                rng.api.NumberFormat = '#,##0 ₽'
+            except Exception as e:
+                print(f'[FORMAT] Ошибка столбца {c}: {e}')
         # Кол-во, шт (4)
-        sheet.range((2, 4), (last_row, 4)).api.NumberFormat = '0'
+        rng_qty = sheet.range((2, 4), (last_row, 4))
+        try:
+            rng_qty.api.NumberFormat = '0'
+        except Exception as e:
+            print(f'[FORMAT] Ошибка столбца 4: {e}')
 
         apply_sheet_settings(wb, SHEET_NAMES['result'])
         autofit_safe(sheet)

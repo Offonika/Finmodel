@@ -365,16 +365,32 @@ def main():
 
         for idx in rub_cols:
             c = idx + 1
-            res.range((2, c), (last_row, c)).api.NumberFormat = '#,##0 ₽'
+            rng = res.range((2, c), (last_row, c))
+            try:
+                rng.api.NumberFormat = '#,##0 ₽'
+            except Exception as e:
+                print(f'[FORMAT] Колонка {c} — ошибка: {e}')
         if qty_col is not None:
             c = qty_col + 1
-            res.range((2, c), (last_row, c)).api.NumberFormat = '#,##0'
+            rng = res.range((2, c), (last_row, c))
+            try:
+                rng.api.NumberFormat = '#,##0'
+            except Exception as e:
+                print(f'[FORMAT] Колонка {c} — ошибка: {e}')
         if 'СебестоимостьПродажНалог, ₽' in hdr:
             col_ct = hdr.index('СебестоимостьПродажНалог, ₽') + 1
-            res.range((2, col_ct), (last_row, col_ct)).api.NumberFormat = '#,##0 ₽'
+            rng = res.range((2, col_ct), (last_row, col_ct))
+            try:
+                rng.api.NumberFormat = '#,##0 ₽'
+            except Exception as e:
+                print(f'[FORMAT] Колонка {col_ct} — ошибка: {e}')
         if pct_col is not None:
             c = pct_col + 1
-            res.range((2, c), (last_row, c)).api.NumberFormat = '0%'
+            rng = res.range((2, c), (last_row, c))
+            try:
+                rng.api.NumberFormat = '0%'
+            except Exception as e:
+                print(f'[FORMAT] Колонка {c} — ошибка: {e}')
 
         total_row = last_row + 1
         res.range((total_row, 1)).value = 'ИТОГО'
@@ -391,10 +407,14 @@ def main():
                 formula = f'=SUBTOTAL(9,{col}2:{col}{total_row-1})'
             res.range((total_row, c)).formula = formula
             res.range((total_row, c)).api.Font.Bold = True
-            if idx in rub_cols:
-                res.range((total_row, c)).api.NumberFormat = '#,##0 ₽'
-            else:
-                res.range((total_row, c)).api.NumberFormat = '#,##0'
+            rng = res.range((total_row, c))
+            try:
+                if idx in rub_cols:
+                    rng.api.NumberFormat = '#,##0 ₽'
+                else:
+                    rng.api.NumberFormat = '#,##0'
+            except Exception as e:
+                print(f'[FORMAT] Итоговая колонка {c} — ошибка: {e}')
 
         res.autofit()
         res.api.Rows.AutoFit()
