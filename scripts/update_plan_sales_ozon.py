@@ -78,9 +78,9 @@ def read_df(ws, idx_needed=()):
 
 
 def main():
-    print("=== Старт update_plan_sales_ozon ===")
+    logging.info("=== Старт update_plan_sales_ozon ===")
     wb, app = get_workbook()
-    print("→ Открыт файл:", wb.fullname)
+    logging.info("→ Открыт файл: %s", wb.fullname)
 
     # Чтение периода расчёта базовых продаж из листа "НастройкиОрганизаций"
     settings_ws = wb.sheets[SHEET_SETTINGS]
@@ -108,19 +108,21 @@ def main():
 
     period_from = find_setting(settings_df, 'Период с')
     period_to   = find_setting(settings_df, 'Период по')
-    print('DEBUG:', period_from, period_to)  # для отладки, потом уберите
-    print("=== DEBUG: settings_df ===")
-    print(settings_df.to_string())
+    logging.debug('DEBUG: %s %s', period_from, period_to)
+    logging.debug("=== DEBUG: settings_df ===")
+    logging.debug(settings_df.to_string())
 
     if not period_from or not period_to:
-        print('❌ Не найден период в настройках!')
+        logging.error('❌ Не найден период в настройках!')
         if app:
             app.quit()
         return
 
     period_from = pd.to_datetime(period_from, dayfirst=True, errors='coerce')
     period_to   = pd.to_datetime(period_to, dayfirst=True, errors='coerce')
-    print(f'→ Период для base: {period_from:%d.%m.%Y} — {period_to:%d.%m.%Y}')
+    logging.info('→ Период для base: %s — %s',
+                 period_from.strftime('%d.%m.%Y'),
+                 period_to.strftime('%d.%m.%Y'))
     # 1. Сезонность
     season_df, _ = read_df(wb.sheets[SHEET_SEASON])
     season_factors = {
@@ -130,7 +132,7 @@ def main():
         ]
         for _, r in season_df.iterrows()
     }
-    print(f'→ Лист {SHEET_SEASON} считан: {len(season_df)} строк')
+    logging.info('→ Лист %s считан: %s строк', SHEET_SEASON, len(season_df))
 
     # 2. Финотчёты
     
@@ -138,9 +140,9 @@ def main():
         sales_df = wb.sheets[SHEET_SALES] \
                     .range(1, 1).expand() \
                     .options(pd.DataFrame, header=1, index=False).value
-        print(f'→ Лист {SHEET_SALES}: {len(sales_df)} строк')
+        logging.info('→ Лист %s: %s строк', SHEET_SALES, len(sales_df))
     except Exception:
-        print(f'❌ Нет листа {SHEET_SALES}')
+        logging.error('❌ Нет листа %s', SHEET_SALES)
         if app:
             app.quit()
         return
@@ -149,7 +151,7 @@ def main():
                 'Год', 'Месяц', 'Продано шт.'}
     missing = need_cols - set(sales_df.columns)
     if missing:
-        print(f'❌ В {SHEET_SALES} нет колонок: {", ".join(missing)}')
+        logging.error('❌ В %s нет колонок: %s', SHEET_SALES, ", ".join(missing))
         if app:
             app.quit()
         return
@@ -166,13 +168,15 @@ def main():
         )
     # ► только текущий год
     sales_df = sales_df[sales_df['Год'] == CURRENT_YEAR]
-    print('Уникальные значения "Месяц":', sorted(sales_df['Месяц'].unique()))
+    logging.debug('Уникальные значения "Месяц": %s',
+                  sorted(sales_df['Месяц'].unique()))
 
     debug_df = sales_df[
         (sales_df['Организация'] == 'ИП Закиров Р.Х.') &
         (sales_df['SKU'].apply(normalize_sku) == normalize_sku('1499960988'))
     ]
-    print(debug_df[['Год', 'Месяц', 'Артикул_поставщика', 'SKU', 'Продано шт.']])
+    logging.debug('\n%s',
+                  debug_df[['Год', 'Месяц', 'Артикул_поставщика', 'SKU', 'Продано шт.']].to_string())
 
     pivot = (
         sales_df
@@ -212,7 +216,7 @@ def main():
         str(r['Артикул']).strip(): safe_float(r['Цена продавца с акциями'])
         for _, r in prices_df.iterrows()
     }
-    print(f'→ Лист {SHEET_PRICES} считан: {len(prices_df)} строк')
+    logging.info('→ Лист %s считан: %s строк', SHEET_PRICES, len(prices_df))
 
     # 4. План
     rows = []
@@ -261,10 +265,10 @@ def main():
     try:
         plan_ws = wb.sheets[SHEET_PLAN]
         plan_ws.clear()
-        print(f'→ Лист {SHEET_PLAN} очищен')
+        logging.info('→ Лист %s очищен', SHEET_PLAN)
     except Exception:
         plan_ws = wb.sheets.add(SHEET_PLAN)
-        print(f'→ Лист {SHEET_PLAN} создан')
+        logging.info('→ Лист %s создан', SHEET_PLAN)
 
     header = ['Организация','Артикул_поставщика','SKU','Базовое кол-во','Плановая цена'] + MONTH_NAMES + ['Всего']
     plan_ws.range(1,1).value = header
@@ -274,9 +278,9 @@ def main():
         plan_ws.api.Tab.Color = (0, 192, 255)  # BGR!
         if plan_ws.index != 3:
             plan_ws.api.Move(Before=wb.sheets[13].api)
-        print("→ Установлен цвет ярлыка #FFC000 и позиция №3")
+        logging.info("→ Установлен цвет ярлыка #FFC000 и позиция №3")
     except Exception as e:
-        print(f"⚠️ Не удалось установить цвет/позицию листа: {e}")
+        logging.warning("⚠️ Не удалось установить цвет/позицию листа: %s", e)
 
     # Вставляем строки (в "Всего" формула)
     values = []
@@ -313,7 +317,7 @@ def main():
     plan_ws.api.Application.ActiveWindow.SplitRow = 1
     plan_ws.api.Application.ActiveWindow.FreezePanes = True
 
-    print('=== Скрипт успешно завершён ===')
+    logging.info('=== Скрипт успешно завершён ===')
     if app:
         wb.save()
         app.quit()
@@ -325,7 +329,7 @@ def get_workbook():
     иначе создаём невидимый экземпляр и открываем файл."""
     try:
         wb = xw.Book.caller()
-        print('→ Запуск из Excel-макроса')
+        logging.info('→ Запуск из Excel-макроса')
         return wb, None
     except Exception:
         pass
@@ -337,14 +341,14 @@ def get_workbook():
                 if bk.fullname \
                    and os.path.exists(bk.fullname) \
                    and os.path.samefile(bk.fullname, EXCEL_PATH):
-                    print('→ Используем уже открытую книгу')
+                    logging.info('→ Используем уже открытую книгу')
                     return bk, None
             except Exception:
                 continue  # пропускаем книги без файла
 
     app = xw.App(visible=False, add_book=False)
     wb = app.books.open(EXCEL_PATH, update_links=False)
-    print('→ Книга была закрыта, открыли новую копию')
+    logging.info('→ Книга была закрыта, открыли новую копию')
     return wb, app
 
 logging.info("==== Расчет завершён ====")
