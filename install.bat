@@ -20,13 +20,13 @@ if not exist "%PROJECT_PATH%excel\Finmodel_Template.xlsm" (
 )
 
 rem --- 2. Копируем Finmodel.xlsm, если ещё нет ------------------------------
-if exist "%PROJECT_PATH%excel\Finmodel.xlsm" (
-    echo ℹ️  Файл excel\Finmodel.xlsm уже существует (пропускаю копирование)
+if exist "%PROJECT_PATH%Finmodel.xlsm" (
+    echo ℹ️  Файл Finmodel.xlsm уже существует (пропускаю копирование)
     echo [INFO] Finmodel.xlsm exists>>"%LOGFILE%"
 ) else (
     echo 📄 Создаю рабочую копию Excel-книги…
     copy "%PROJECT_PATH%excel\Finmodel_Template.xlsm" ^
-         "%PROJECT_PATH%excel\Finmodel.xlsm" >nul
+         "%PROJECT_PATH%Finmodel.xlsm" >nul
     echo [INFO] Template copied to Finmodel.xlsm>>"%LOGFILE%"
 )
 
@@ -39,9 +39,9 @@ if exist "%LNK%" (
     echo 🔗 Создаю ярлык на рабочем столе…
     powershell -NoLogo -NoProfile -Command ^
       "$s=(New-Object -COM WScript.Shell).CreateShortcut('%LNK%');" ^
-      "$s.TargetPath='%PROJECT_PATH%excel\\Finmodel.xlsm';" ^
-      "$s.WorkingDirectory='%PROJECT_PATH%excel';" ^
-      "$s.Save()"
+      "$s.TargetPath='%PROJECT_PATH%Finmodel.xlsm';" ^
+      "$s.WorkingDirectory='%PROJECT_PATH%';" ^
+      "$s.Save()" 
     echo [INFO] Shortcut created>>"%LOGFILE%"
 )
 
