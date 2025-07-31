@@ -1154,34 +1154,36 @@ def fill_planned_indicators():
             # 3) создать новую ListObject без TotalsRow
             lo = sh.api.ListObjects.Add(1, lo_range, None, 1)
             lo.Name, lo.TableStyle = TABLE_NAME, TABLE_STYLE   # стиль Medium 7
-            fmt_fin = '#,##0 [$₽-419];[Red]-#,##0 [$₽-419];-'
+            # fmt_fin = '#,##0 [$₽-419];[Red]-#,##0 [$₽-419];-'
 
 
            
             
             # 4) форматируем все ₽-колонки единым вызовом
-            fmt = fmt_fin
-            ruble_map = [(headers.index(c) + 1, c) for c in ruble_cols]
+            # fmt = fmt_fin
+            # ruble_map = [(headers.index(c) + 1, c) for c in ruble_cols]
 
-            if not IS_EXE:
-                if lo.DataBodyRange is not None:
-                    for idx, name in ruble_map:
-                        try:
-                            col_range = lo.ListColumns(idx).Range
-                            if col_range is not None:
-                                col_range.api.NumberFormat = fmt
-                            else:
-                                log_info(
-                                    f"[FORMAT] Колонка {idx} ({name}) → Range is None, пропущено"
-                                )
-                        except Exception as e:
-                            log_info(
-                                f"[FORMAT] Колонка {idx} ({name}) — ошибка: {e}"
-                            )
-            else:
-                log_info(
-                    "[FORMAT] Пропущено форматирование NumberFormat — запуск в .exe режиме"
-                )
+            # Начиная с версии без форматирования столбцов NumberFormat
+            # блок ниже был отключён для совместимости с Linux средой.
+            # if not IS_EXE:
+            #     if lo.DataBodyRange is not None:
+            #         for idx, name in ruble_map:
+            #             try:
+            #                 col_range = lo.ListColumns(idx).Range
+            #                 if col_range is not None:
+            #                     col_range.api.NumberFormat = fmt
+            #                 else:
+            #                     log_info(
+            #                         f"[FORMAT] Колонка {idx} ({name}) → Range is None, пропущено"
+            #                     )
+            #             except Exception as e:
+            #                 log_info(
+            #                     f"[FORMAT] Колонка {idx} ({name}) — ошибка: {e}"
+            #                 )
+            # else:
+            #     log_info(
+            #         "[FORMAT] Пропущено форматирование NumberFormat — запуск в .exe режиме"
+            #     )
 
 
 
@@ -1202,17 +1204,19 @@ def fill_planned_indicators():
             letter = col_name(idx)
             cell = sh.range(total_row, idx)
             cell.formula = f"=SUBTOTAL(109,{letter}$2:{letter}${last_row})"
-            if not IS_EXE:
-                try:
-                    cell.api.NumberFormat = fmt
-                except Exception as e:
-                    log_info(
-                        f"[FORMAT] Итоговая колонка {idx} ({col}) — ошибка: {e}"
-                    )
-            else:
-                log_info(
-                    "[FORMAT] Пропущено формат NumberFormat для итогов — запуск в .exe режиме"
-                )
+            # Из-за отсутствия поддержки COM в Linux пропущено назначение
+            # NumberFormat итоговым ячейкам.
+            # if not IS_EXE:
+            #     try:
+            #         cell.api.NumberFormat = fmt
+            #     except Exception as e:
+            #         log_info(
+            #             f"[FORMAT] Итоговая колонка {idx} ({col}) — ошибка: {e}"
+            #         )
+            # else:
+            #     log_info(
+            #         "[FORMAT] Пропущено формат NumberFormat для итогов — запуск в .exe режиме"
+            #     )
 
 
         # ------ ярлык и позиция листа ----------------------------------
