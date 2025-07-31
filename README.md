@@ -309,4 +309,5 @@ get_workbook()
 логирование в log/.
 
 © Finmodel 2025  •  Made with 🐍 + 📈 + 💚Вопросы 👉 telegram: @FinmodelSupport
+Licensed under the [MIT License](LICENSE).
 
