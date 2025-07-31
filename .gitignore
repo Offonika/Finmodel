@@ -27,3 +27,4 @@ dist/
 
 # Coverage
 .coverage
+release_exe/
