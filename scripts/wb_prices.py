@@ -1,4 +1,4 @@
-import os
+from pathlib import Path
 import xlwings as xw
 import requests
 import time
@@ -22,8 +22,7 @@ HEADER_DICT = {
 }
 HEADERS_RU = list(HEADER_DICT.values())
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-EXCEL_PATH = os.path.join(BASE_DIR, 'excel', 'Finmodel.xlsm')
+EXCEL_PATH = Path(__file__).resolve().parents[1] / 'Finmodel.xlsm'
 
 def log(msg):
     now = datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")

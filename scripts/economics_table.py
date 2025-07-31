@@ -5,16 +5,15 @@
 # Скрипт работает как из Excel-макроса (RunPython), так и из терминала.
 # ------------------------------------------------------------------
 
-import os
 import re
 from decimal import Decimal
+from pathlib import Path
 import pandas as pd
 import xlwings as xw
 
 # ---------- Константы ------------------------------------------------------
 
-BASE_DIR      = os.path.dirname(os.path.abspath(__file__))
-EXCEL_PATH    = os.path.join(BASE_DIR, "excel", "Finmodel.xlsm")
+EXCEL_PATH = Path(__file__).resolve().parents[1] / "Finmodel.xlsm"
 
 SHEET_PLAN    = "ПланПродажОзон"
 SHEET_COST    = "РасчётСебестоимости"

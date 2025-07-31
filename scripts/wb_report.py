@@ -1,3 +1,4 @@
+from pathlib import Path
 import xlwings as xw
 import requests
 import datetime
@@ -13,7 +14,7 @@ SHEET_LOG       = "WB_Log"
 WB_API_URL_STAT = "https://statistics-api.wildberries.ru/api/v5/supplier/reportDetailByPeriod"
 BATCH_SIZE_WB   = 100000
 
-EXCEL_FILE_PATH = r"C:\Users\Public\Finmodel\excel\Finmodel.xlsm"
+EXCEL_FILE_PATH = Path(__file__).resolve().parents[1] / "Finmodel.xlsm"
 
 def get_idx(header):
     return {str(h).strip(): i for i, h in enumerate(header)}
@@ -173,7 +174,7 @@ def import_wb_detailed_reports(wb=None):
         try:
             wb = xw.Book.caller()
         except Exception:
-            wb = xw.Book(EXCEL_FILE_PATH)
+            wb = xw.Book(str(EXCEL_FILE_PATH))
 
     ws_log   = get_or_create_sheet(wb, SHEET_LOG)
     ws_set   = get_or_create_sheet(wb, SHEET_SETTINGS,  ws_log)

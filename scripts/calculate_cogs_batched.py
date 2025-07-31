@@ -1,11 +1,10 @@
 # calculate_cogs_batched.py
 
-import os
+from pathlib import Path
 import xlwings as xw
 import pandas as pd
 import logging
 import datetime
-import pathlib
 from scripts.sheet_utils import apply_sheet_settings
 
 # Налоговая списываемость закупочной цены в зависимости от типа логистики
@@ -24,8 +23,8 @@ def norm(key: str) -> str:
     if key is None:
         return ""
     return str(key).replace(" ", " ").strip().upper().translate(RUS_TO_LAT)
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))   # ← был позже – перенесли сюда!
-LOG_DIR  = pathlib.Path(BASE_DIR, "log")
+BASE_DIR = Path(__file__).resolve().parent
+LOG_DIR = (BASE_DIR / "log")
 LOG_DIR.mkdir(exist_ok=True)
 LOG_FILE = LOG_DIR / f"cogs_{datetime.datetime.now():%Y%m%d_%H%M%S}.log"
 
@@ -44,7 +43,7 @@ def log(msg, level="info"):
     # если хотите видеть всё ещё и в консоли, раскомментируйте:
     # print(msg)
 # --------------------------------
-EXCEL_PATH = os.path.join(BASE_DIR, 'excel', 'Finmodel.xlsm')
+EXCEL_PATH = BASE_DIR.parent / 'Finmodel.xlsm'
 
 
 # ЗАМЕНЁННЫЕ НАЗВАНИЯ ЛИСТОВ

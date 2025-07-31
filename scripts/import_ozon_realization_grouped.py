@@ -4,7 +4,7 @@ import warnings
 from collections import defaultdict
 import requests
 import pandas as pd
-import os
+from pathlib import Path
 import re
 import xlwings as xw
 from datetime import datetime
@@ -45,8 +45,8 @@ OUTPUT_HEADERS = [
 ]
 API_URL = 'https://api-seller.ozon.ru/v2/finance/realization/'
 SHEET_NAME = 'ФинотчетыОзон'
-BASE_DIR   = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-EXCEL_PATH = os.path.join(BASE_DIR, 'excel', 'Finmodel.xlsm')
+BASE_DIR = Path(__file__).resolve().parents[1]
+EXCEL_PATH = BASE_DIR / 'Finmodel.xlsm'
 
   # подстрой под себя!
 ORG_SHEET = 'НастройкиОрганизаций'

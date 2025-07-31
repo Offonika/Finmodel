@@ -11,7 +11,7 @@
 # Работает и из Excel-макроса (RunPython) и из терминала.
 
 # ---------- Пути --------------------------------------------------
-import os
+from pathlib import Path
 import sys
 import logging
 import xlwings as xw
@@ -33,15 +33,12 @@ SUMMARY_FIELDS = ['Организация', 'Сценарий', 'ФОТ_белы
 
 # -------------------------------------------------------------------
 
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PROJECT_DIR = os.path.dirname(SCRIPT_DIR)           # ← папка Finmodel
-EXCEL_PATH  = os.path.join(PROJECT_DIR, 'excel', 'Finmodel.xlsm')
-LOG_DIR     = os.path.join(PROJECT_DIR, 'log')
+PROJECT_DIR = Path(__file__).resolve().parents[1]
+EXCEL_PATH = PROJECT_DIR / 'Finmodel.xlsm'
+LOG_DIR = PROJECT_DIR / 'log'
 
-os.makedirs(LOG_DIR, exist_ok=True)
-LOG_FILE = os.path.join(
-    LOG_DIR, f'calc_payroll_{dt.datetime.now():%Y%m%d_%H%M%S}.log'
-)
+LOG_DIR.mkdir(exist_ok=True)
+LOG_FILE = LOG_DIR / f'calc_payroll_{dt.datetime.now():%Y%m%d_%H%M%S}.log'
 
 logging.basicConfig(
     level=logging.INFO,
