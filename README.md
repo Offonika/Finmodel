@@ -292,6 +292,10 @@ cd Finmodel
 venv\Scripts\activate
 python scripts/calculate_cogs_batched.py --help
 
+# пример запуска main.py с указанием путей
+python scripts/main.py --org_folder data/ozon --output_path excel/Finmodel.xlsm
+# значения по умолчанию можно задать в `config.ini`
+
 Линтинг – ruff check .
 
 Тесты – pytest -q (используется pytest-xlwings для интеграций с Excel)
