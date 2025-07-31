@@ -1161,21 +1161,27 @@ def fill_planned_indicators():
             
             # 4) форматируем все ₽-колонки единым вызовом
             fmt = fmt_fin
-            ruble_idx = [headers.index(c) + 1 for c in ruble_cols]
+            ruble_map = [(headers.index(c) + 1, c) for c in ruble_cols]
 
             if not IS_EXE:
                 if lo.DataBodyRange is not None:
-                    for i in ruble_idx:
+                    for idx, name in ruble_map:
                         try:
-                            col_range = lo.ListColumns(i).Range
+                            col_range = lo.ListColumns(idx).Range
                             if col_range is not None:
                                 col_range.api.NumberFormat = fmt
                             else:
-                                log_info(f"[FORMAT] Колонка {i} → Range is None, пропущено")
+                                log_info(
+                                    f"[FORMAT] Колонка {idx} ({name}) → Range is None, пропущено"
+                                )
                         except Exception as e:
-                            log_info(f"[FORMAT] Колонка {i} — ошибка: {e}")
+                            log_info(
+                                f"[FORMAT] Колонка {idx} ({name}) — ошибка: {e}"
+                            )
             else:
-                log_info("[FORMAT] Пропущено форматирование NumberFormat — запуск в .exe режиме")
+                log_info(
+                    "[FORMAT] Пропущено форматирование NumberFormat — запуск в .exe режиме"
+                )
 
 
 
@@ -1200,9 +1206,13 @@ def fill_planned_indicators():
                 try:
                     cell.api.NumberFormat = fmt
                 except Exception as e:
-                    log_info(f"[FORMAT] Итоговая колонка {idx} — ошибка: {e}")
+                    log_info(
+                        f"[FORMAT] Итоговая колонка {idx} ({col}) — ошибка: {e}"
+                    )
             else:
-                log_info("[FORMAT] Пропущено формат NumberFormat для итогов — запуск в .exe режиме")
+                log_info(
+                    "[FORMAT] Пропущено формат NumberFormat для итогов — запуск в .exe режиме"
+                )
 
 
         # ------ ярлык и позиция листа ----------------------------------
