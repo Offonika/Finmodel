@@ -1,14 +1,13 @@
 # update_revenue_plan.py
 
-import os
+from pathlib import Path
 import xlwings as xw
 import pandas as pd
 import re
 
 from scripts.style_utils import format_table
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-EXCEL_PATH = os.path.join(BASE_DIR, 'excel', 'Finmodel.xlsm') 
+EXCEL_PATH = Path(__file__).resolve().parents[1] / 'Finmodel.xlsm'
 
 
 SHEET_SALES   = 'План_ПродажWB'

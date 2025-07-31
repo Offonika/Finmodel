@@ -1,6 +1,6 @@
 # update_monthly_scenario_calc.py
 
-import os
+from pathlib import Path
 import xlwings as xw
 try:
     import win32com.client  # type: ignore
@@ -10,8 +10,7 @@ import math#
 import re
 import pandas as pd
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-EXCEL_PATH = os.path.join(BASE_DIR, 'excel', 'Finmodel.xlsm')
+EXCEL_PATH = Path(__file__).resolve().parents[1] / 'Finmodel.xlsm'
 
 # Все названия листов вынесены в словарь
 SHEET_NAMES = {

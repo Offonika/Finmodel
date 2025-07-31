@@ -1,13 +1,12 @@
 # create_ozon_economics_table.py
 
-import os
+from pathlib import Path
 import xlwings as xw
 
 from scripts.style_utils import autofit_safe
 from scripts.sheet_utils import apply_sheet_settings
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-EXCEL_PATH = os.path.join(BASE_DIR, 'excel', 'Finmodel.xlsm')
+EXCEL_PATH = Path(__file__).resolve().parents[1] / 'Finmodel.xlsm'
 
 SHEET_NAMES = {
     'plan_revenue':  'ПланВыручкиОзон',

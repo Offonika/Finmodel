@@ -3,15 +3,14 @@
 # Расчёт % выкупа по nmId на основе srid за 90 дней
 # ----------------------------------------------------------
 
-import os
+from pathlib import Path
 import time
 import datetime
 import requests
 import pandas as pd
 import xlwings as xw
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-EXCEL_PATH = os.path.join(BASE_DIR, 'excel', 'Finmodel.xlsm')
+EXCEL_PATH = Path(__file__).resolve().parents[1] / 'Finmodel.xlsm'
 SHEET_SETTINGS = 'НастройкиОрганизаций'
 SHEET_OUTPUT = '%ВыкупаWB'
 DAYS = 90
