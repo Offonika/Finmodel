@@ -1,7 +1,4 @@
-from pathlib import Path
-import sys
-sys.path.append(str(Path(__file__).resolve().parents[1] / "scripts"))
-from fill_planned_indicators import parse_month
+from scripts.fill_planned_indicators import parse_month
 
 
 def test_parse_month_various_formats():

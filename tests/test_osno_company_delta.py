@@ -1,7 +1,3 @@
-from pathlib import Path
-import sys
-sys.path.append(str(Path(__file__).resolve().parents[1] / 'scripts'))
-
 def calc_corp_tax(rows):
     cum = 0
     taxes = []
