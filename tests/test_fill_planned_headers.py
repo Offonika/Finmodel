@@ -1,8 +1,4 @@
-from pathlib import Path
-import sys
-
-sys.path.append(str(Path(__file__).resolve().parents[1] / "scripts"))
-from fill_planned_indicators import build_idx, find_key, parse_money
+from scripts.fill_planned_indicators import build_idx, find_key, parse_money
 
 
 def test_ozon_new_header_mapping():
