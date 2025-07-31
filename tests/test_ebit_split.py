@@ -1,7 +1,4 @@
-from pathlib import Path
-import sys
-sys.path.append(str(Path(__file__).resolve().parents[1] / 'scripts'))
-from fill_planned_indicators import _calc_row
+from scripts.fill_planned_indicators import _calc_row
 
 
 def test_mp_excluded_from_mgmt_but_tax_with_gross():

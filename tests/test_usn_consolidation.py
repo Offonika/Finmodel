@@ -1,8 +1,4 @@
-from pathlib import Path
-import sys
-
-sys.path.append(str(Path(__file__).resolve().parents[1] / 'scripts'))
-from fill_planned_indicators import _apply_consolidated_dr_tax, calc_consolidated_min_tax
+from scripts.fill_planned_indicators import _apply_consolidated_dr_tax, calc_consolidated_min_tax
 
 
 def test_consolidated_usn_min_tax_distribution():

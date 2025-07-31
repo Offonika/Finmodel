@@ -1,9 +1,5 @@
 import pandas as pd
-import sys
-from pathlib import Path
-
-sys.path.append(str(Path(__file__).resolve().parents[1] / "scripts"))
-from economics_table import compute_ozon_economics_df
+from scripts.economics_table import compute_ozon_economics_df
 
 def test_taxable_cogs_column():
     plan_df = pd.DataFrame({

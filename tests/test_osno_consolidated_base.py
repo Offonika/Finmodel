@@ -1,8 +1,4 @@
-from pathlib import Path
-import sys
-
-sys.path.append(str(Path(__file__).resolve().parents[1] / 'scripts'))
-from fill_planned_indicators import ndfl_prog, consolidate_osno_tax
+from scripts.fill_planned_indicators import ndfl_prog, consolidate_osno_tax
 
 
 def calc_osno_tax(rows, consolidate=False):
