@@ -26,9 +26,11 @@ from pathlib import Path
 DEBUG_MONTH = False
 
 # ---------- 2. Определение режима запуска --------------------------------
-IS_EXE = getattr(sys, 'frozen', False)
-BASE_DIR = Path(sys.executable if IS_EXE else __file__).resolve().parent
-PROJECT_DIR = BASE_DIR.parent
+IS_EXE = getattr(sys, "frozen", False)
+if IS_EXE:
+    BASE_DIR = Path(sys.executable).resolve().parent
+else:
+    BASE_DIR = Path(__file__).resolve().parent.parent
 
 # ---------- 3. Парсинг аргументов командной строки -----------------------
 def parse_args():
@@ -47,11 +49,11 @@ ARGS = parse_args()
 
 # ---------- 4. Пути ------------------------------------------------------
 
-EXCEL_PATH = PROJECT_DIR / ARGS.file
+EXCEL_PATH = BASE_DIR / ARGS.file
 
 
 # ---------- 5. Логирование в файл ----------------------------------------
-LOG_DIR = PROJECT_DIR / 'log'
+LOG_DIR = BASE_DIR / 'log'
 os.makedirs(LOG_DIR, exist_ok=True)
 LOG_PATH = LOG_DIR / 'fill_planned_indicators.log'
 
@@ -88,19 +90,24 @@ TABLE_STYLE = 'TableStyleMedium7'          # зелёный Medium 7
 LIMIT_GROSS_USN = 450_000_000              # ₽
 
 # ---------- 3. Вспомогательные функции ------------------------------------
-def open_wb():
-    """Возвращает (wb, app). app == None, если скрипт вызван из Excel."""
-    try:                    # вызов из макроса RunPython
-        wb, app = xw.Book.caller(), None
-        log_info(f'→ Excel-режим: {wb.fullname}')
-    except Exception:       # запуск из терминала
+def get_workbook():
+    """Return ``(wb, app)``. ``app`` is ``None`` when called from Excel."""
+    try:
+        wb = xw.Book.caller()
+        app = None
+        log_info("✅ Запуск из Excel: использую текущую книгу.")
+    except Exception:
         if not EXCEL_PATH.exists():
             log_info(f"❌ Workbook not found: {EXCEL_PATH}")
             raise FileNotFoundError(f"Workbook not found: {EXCEL_PATH}")
+        log_info("🔹 Консольный режим: открываю книгу отдельно.")
         app = xw.App(visible=False, add_book=False)
-        wb  = app.books.open(EXCEL_PATH, read_only=False)
-        log_info(f'→ Консоль-режим: {EXCEL_PATH}')
+        wb = app.books.open(EXCEL_PATH, read_only=False)
+        log_info(f"→ Открыт файл: {EXCEL_PATH}")
     return wb, app
+
+# Backward compatibility
+open_wb = get_workbook
 
 def parse_money(v):
     if v in (None, ''):
@@ -335,7 +342,7 @@ def fill_planned_indicators():
     wb = app = None
     try:
         # === 4.1 Открываем книгу ========================================
-        wb, app = open_wb()
+        wb, app = get_workbook()
         ss = wb
         sheet_names = [s.name for s in ss.sheets]
 
