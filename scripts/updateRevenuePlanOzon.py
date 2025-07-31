@@ -33,7 +33,8 @@ def main():
         print(f"→ Прочитано строк из {SHEET_SALES}: {len(df)}")
     except Exception as e:
         print(f"❌ Нет листа {SHEET_SALES}: {e}")
-        if app: app.quit()
+        if app:
+            app.quit()
         return
 
     df = df[df['Организация'].str.lower() != 'итого']  # убираем строки "Итого", если есть
@@ -43,14 +44,16 @@ def main():
     print(f"→ Месячные столбцы: {month_cols}")
     if not month_cols:
         print("❌ Нет месячных колонок!")
-        if app: app.quit()
+        if app:
+            app.quit()
         return
 
     # Проверка нужных колонок
     for c in ['Организация', 'Артикул_поставщика', 'SKU', 'Плановая цена']:
         if c not in df.columns:
             print(f"❌ Нет колонки {c} в {SHEET_SALES}")
-            if app: app.quit()
+            if app:
+                app.quit()
             return
 
     # Вычислить выручку по месяцам и итог
@@ -72,7 +75,7 @@ def main():
         out_ws = wb.sheets[SHEET_OUT]
         out_ws.clear()
         print(f'→ Лист {SHEET_OUT} очищен')
-    except:
+    except Exception:
         out_ws = wb.sheets.add(SHEET_OUT)
         print(f'→ Лист {SHEET_OUT} создан')
 
@@ -121,7 +124,9 @@ def main():
     out_ws.api.Application.ActiveWindow.FreezePanes = True
 
     print("=== Скрипт успешно завершён ===")
-    if app: wb.save(); app.quit()
+    if app:
+        wb.save()
+        app.quit()
 
 if __name__ == '__main__':
     main()

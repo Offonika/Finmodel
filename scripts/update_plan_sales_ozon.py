@@ -5,8 +5,8 @@ import xlwings as xw
 import pandas as pd
 import re
 from datetime import datetime
-
 from pathlib import Path
+import logging
 
 BASE_DIR = Path(__file__).resolve().parent
 EXCEL_PATH = str(BASE_DIR.parent / 'Finmodel.xlsm')
@@ -22,9 +22,7 @@ TABLE_STYLE    = 'TableStyleMedium7'
 MONTHS_CNT = 12
 MONTH_NAMES = [f'Мес.{str(i+1).zfill(2)}' for i in range(MONTHS_CNT)]
 CURRENT_MONTH = datetime.now().month
-CURRENT_YEAR = datetime.now().year 
-
-import logging
+CURRENT_YEAR = datetime.now().year
 
 # Настройка логирования
 LOG_PATH = os.path.join(BASE_DIR, 'plan_sales_ozon.log')
@@ -116,7 +114,8 @@ def main():
 
     if not period_from or not period_to:
         print('❌ Не найден период в настройках!')
-        if app: app.quit()
+        if app:
+            app.quit()
         return
 
     period_from = pd.to_datetime(period_from, dayfirst=True, errors='coerce')
@@ -142,7 +141,8 @@ def main():
         print(f'→ Лист {SHEET_SALES}: {len(sales_df)} строк')
     except Exception:
         print(f'❌ Нет листа {SHEET_SALES}')
-        if app: app.quit()
+        if app:
+            app.quit()
         return
 
     need_cols = {'Организация', 'Артикул_поставщика', 'SKU',
@@ -150,7 +150,8 @@ def main():
     missing = need_cols - set(sales_df.columns)
     if missing:
         print(f'❌ В {SHEET_SALES} нет колонок: {", ".join(missing)}')
-        if app: app.quit()
+        if app:
+            app.quit()
         return
 
     # normalize articles to match cost sheet
@@ -261,7 +262,7 @@ def main():
         plan_ws = wb.sheets[SHEET_PLAN]
         plan_ws.clear()
         print(f'→ Лист {SHEET_PLAN} очищен')
-    except:
+    except Exception:
         plan_ws = wb.sheets.add(SHEET_PLAN)
         print(f'→ Лист {SHEET_PLAN} создан')
 
@@ -313,7 +314,9 @@ def main():
     plan_ws.api.Application.ActiveWindow.FreezePanes = True
 
     print('=== Скрипт успешно завершён ===')
-    if app: wb.save(); app.quit()
+    if app:
+        wb.save()
+        app.quit()
 
 
 def get_workbook():
