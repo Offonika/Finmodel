@@ -64,6 +64,11 @@ Finmodel.zip          →  C:\Users\<User>\Documents\Finmodel
 
 После установки запустите setup_finmodel.bat ещё раз и снова выберите 4.
 
+Файл `.xlwings.conf` в корне проекта содержит абсолютные пути. Если позже
+переместить папку Finmodel, эти пути станут неверными. В таком случае
+запустите `setup_finmodel.bat` повторно (пункт 4) или отредактируйте
+`PROJECT_PATH` в `.xlwings.conf` вручную.
+
 2.3 Что делает скрипт
 
 Шаг
@@ -116,6 +121,9 @@ PYTHONPATH –
 Finmodel\scripts
 
 Отметьте Add workbook to PYTHONPATH.
+
+Проверить настройки можно на ленте **xlwings** → **Interpreter**: пути
+должны указывать на текущую папку Finmodel и его виртуальное окружение.
 
 3.2 Проверка
 
