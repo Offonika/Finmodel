@@ -1154,7 +1154,7 @@ def fill_planned_indicators():
             # 3) создать новую ListObject без TotalsRow
             lo = sh.api.ListObjects.Add(1, lo_range, None, 1)
             lo.Name, lo.TableStyle = TABLE_NAME, TABLE_STYLE   # стиль Medium 7
-            fmt_fin = '#,##0 ₽;[Red]-#,##0 ₽;"-"'
+            fmt_fin = '#,##0 [$₽-419];[Red]-#,##0 [$₽-419];-'
 
 
            
