@@ -2,7 +2,7 @@
 
 ## Overview
 - Python automation scripts live in `scripts/`.
-- Excel workbook `Finmodel.xlsm` is stored in `excel/`.
+- Excel workbook `Finmodel.xlsm` sits in the project root.
 - Unit tests live in `tests/`.
 
 ## Setup
