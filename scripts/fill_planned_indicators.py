@@ -27,10 +27,12 @@ DEBUG_MONTH = False
 
 # ---------- 2. Определение режима запуска --------------------------------
 IS_EXE = getattr(sys, "frozen", False)
-if IS_EXE:
-    BASE_DIR = Path(sys.executable).resolve().parent
-else:
-    BASE_DIR = Path(__file__).resolve().parent.parent
+BASE_DIR = (
+    Path(sys.executable).resolve().parent
+    if IS_EXE
+    else Path(__file__).resolve().parent.parent
+)
+PROJECT_DIR = BASE_DIR.parent if IS_EXE else BASE_DIR
 
 # ---------- 3. Парсинг аргументов командной строки -----------------------
 def parse_args():
@@ -49,7 +51,7 @@ ARGS = parse_args()
 
 # ---------- 4. Пути ------------------------------------------------------
 
-EXCEL_PATH = BASE_DIR / ARGS.file
+EXCEL_PATH = PROJECT_DIR / ARGS.file
 
 
 # ---------- 5. Логирование в файл ----------------------------------------
