@@ -1,7 +1,4 @@
-from pathlib import Path
-import sys
-sys.path.append(str(Path(__file__).resolve().parents[1] / 'scripts'))
-from fill_planned_indicators import find_key
+from scripts.fill_planned_indicators import find_key
 
 def test_find_key_punctuation():
     idx = {

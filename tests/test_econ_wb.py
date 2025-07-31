@@ -1,9 +1,5 @@
 import pandas as pd
-import sys
-from pathlib import Path
-
-sys.path.append(str(Path(__file__).resolve().parents[1] / "scripts"))
-from economics_table import compute_wb_economics_df
+from scripts.economics_table import compute_wb_economics_df
 
 
 def test_wb_tax_columns():
