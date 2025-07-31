@@ -21,6 +21,8 @@ import xlwings as xw
 import logging
 from pathlib import Path
 
+from scripts.utils import ensure_interpreter_path
+
 # Флаг отладки по месяцам. Значение может быть переопределено
 # через аргументы командной строки в ``parse_args``.
 DEBUG_MONTH = False
@@ -94,6 +96,7 @@ LIMIT_GROSS_USN = 450_000_000              # ₽
 # ---------- 3. Вспомогательные функции ------------------------------------
 def get_workbook():
     """Return ``(wb, app)``. ``app`` is ``None`` when called from Excel."""
+    ensure_interpreter_path()
     try:
         wb = xw.Book.caller()
         app = None
