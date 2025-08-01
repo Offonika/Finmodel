@@ -320,6 +320,21 @@ get_workbook()
 
 логирование в log/.
 
+### Определение EXE‑режима
+
+Используйте единый шаблон для вычисления путей. Это позволяет упакованному
+`Finmodel.exe` (создаётся через [`build_release.bat`](build_release.bat))
+находить `Finmodel.xlsm` рядом с программой:
+
+```python
+IS_EXE = getattr(sys, "frozen", False)
+BASE_DIR = Path(sys.executable).resolve().parent if IS_EXE else Path(__file__).resolve().parent
+PROJECT_DIR = BASE_DIR.parent if IS_EXE else BASE_DIR
+EXCEL_PATH = PROJECT_DIR / "Finmodel.xlsm"
+```
+Новые скрипты следует писать по этому образцу, чтобы EXE версии корректно
+искали рабочую книгу.
+
 © Finmodel 2025  •  Made with 🐍 + 📈 + 💚Вопросы 👉 telegram: @FinmodelSupport
 Licensed under the [MIT License](LICENSE).
 
