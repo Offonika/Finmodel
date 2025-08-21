@@ -258,6 +258,16 @@ def full_cogs(cn, nds):
     return cn * (1 + (20 - nds) / 100)
 
 
+def _calc_cost_base(cn, cr, nds):
+    """Return base cost excluding VAT.
+
+    Uses provided net cost ``cn`` when available. Otherwise the base cost is
+    derived from gross cost ``cr`` by removing VAT according to ``nds`` rate.
+    """
+
+    return cn if cn is not None else cr / (1 + nds / 100)
+
+
 def _calc_row(
     revN,
     mpNet,
@@ -711,16 +721,12 @@ def fill_planned_indicators():
 
             oth_cost = other.get(g['org'], 0)
 
-            if round(nds) in (5, 7):
-                cost_base = full_cogs(g['cn'], nds)
-            elif round(nds) == 20:
-                cost_base = g['cn']
-            else:
-                cost_base = g['cr']
+            cost_base = _calc_cost_base(g.get('cn'), g['cr'], nds)
+            g['cn'] = cost_base
 
             cost_sales = cost_base
-            cost_tax = g.get('ct', full_cogs(g['cn'], nds))
-            cost_tax_wo = g.get('ct_wo', g['cn'])
+            cost_tax = g.get('ct', full_cogs(cost_base, nds))
+            cost_tax_wo = g.get('ct_wo', cost_base)
             ebit_mgmt = revN - (cost_sales + mpNet + labor_exp + esn + oth_cost)
             if mode_eff == 'Доходы-Расходы':
                 ebit_tax = revN - (cost_tax + mpGross + oklad_of + esn + oth_cost)
