@@ -262,15 +262,22 @@ def full_cogs(cn, nds):
         return cn
     return cn * (1 + (20 - nds) / 100)
 
+COST_BASE_TOLERANCE = 0.01  # 1% tolerance for rounding errors
 
 def _calc_cost_base(cn, cr, nds):
     """Return base cost excluding VAT.
 
     Uses provided net cost ``cn`` when available. Otherwise the base cost is
     derived from gross cost ``cr`` by removing VAT according to ``nds`` rate.
+    If ``cn`` is provided but deviates from ``cr`` by more than
+    ``COST_BASE_TOLERANCE`` percent, the net cost is recalculated from ``cr``.
     """
 
-    return cn if cn is not None else cr / (1 + nds / 100)
+    if cn is not None:
+        expected_cr = cn * (1 + nds / 100)
+        if abs(cr - expected_cr) <= expected_cr * COST_BASE_TOLERANCE:
+            return cn
+    return cr / (1 + nds / 100)
 
 
 def _calc_row(
