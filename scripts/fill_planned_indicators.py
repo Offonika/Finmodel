@@ -145,15 +145,18 @@ def get_workbook():
 open_wb = get_workbook
 
 def parse_money(v):
-    if v in (None, ''):
-        return 0.0
-    s = str(v).replace(' ', '').replace('₽', '').replace(',', '.')
+    if v is None:
+        return None
+    s = str(v).strip()
+    if s == '':
+        return None
+    s = s.replace(' ', '').replace('₽', '').replace(',', '.')
     s = ''.join(
         c
         for c in s
         if c.isdigit() or c in '-.'
     )
-    return float(s)
+    return float(s) if s else None
 
 def parse_month(val):
     """
@@ -481,12 +484,12 @@ def fill_planned_indicators():
             rows.append(dict(
                 org=org,
                 month=month,
-                rev=parse_money(r[oz_idx['выручка_руб']]),
-                mp=parse_money(r[oz_idx['итогорасходымп_руб']]),
-                cr=parse_money(r[oz_idx['себестоимостьпродаж_руб']]),
+                rev=parse_money(r[oz_idx['выручка_руб']]) or 0,
+                mp=parse_money(r[oz_idx['итогорасходымп_руб']]) or 0,
+                cr=parse_money(r[oz_idx['себестоимостьпродаж_руб']]) or 0,
                 cn=parse_money(r[oz_idx['себестоимостьбезндс_руб']]),
-                ct=parse_money(r[tax_col_oz]) if tax_col_oz is not None else 0,
-                ct_wo=parse_money(r[tax_nds_col_oz]) if tax_nds_col_oz is not None else 0
+                ct=parse_money(r[tax_col_oz]) if tax_col_oz is not None else None,
+                ct_wo=parse_money(r[tax_nds_col_oz]) if tax_nds_col_oz is not None else None
             ))
 
 
@@ -513,9 +516,9 @@ def fill_planned_indicators():
             log_month(raw_month, src='WB', rownum=i, reason=f'принят, результат parse_month={month}')
             rows.append(dict(
                 org=org, month=month,
-                rev=parse_money(r[wb_idx['выручка, ₽']]),
-                mp=parse_money(r[wb_idx['расходы мп, ₽']]),
-                cr=parse_money(r[wb_idx['себестоимостьпродажруб']]),
+                rev=parse_money(r[wb_idx['выручка, ₽']]) or 0,
+                mp=parse_money(r[wb_idx['расходы мп, ₽']]) or 0,
+                cr=parse_money(r[wb_idx['себестоимостьпродажруб']]) or 0,
                 cn=parse_money(r[wb_idx['себестоимостьпродажбезндс']]),
                 ct=parse_money(r[tax_col_wb]) if tax_col_wb is not None else None,
                 ct_wo=parse_money(r[tax_wo_col_wb]) if tax_wo_col_wb is not None else None
@@ -534,9 +537,9 @@ def fill_planned_indicators():
             org = r[cfg_idx['организация']]
 
             # --- ставка НДС/УСН (как было) ---
-            nds = parse_money(str(r[cfg_idx.get('ставка ндс', '')]).replace('%', '').replace(',', '.'))
+            nds = parse_money(str(r[cfg_idx.get('ставка ндс', '')]).replace('%', '').replace(',', '.')) or 0
             nds = nds * 100 if 0 < nds < 1 else nds
-            usn = parse_money(str(r[cfg_idx.get('ставканалогаусн', '')]).replace('%', '').replace(',', '.'))
+            usn = parse_money(str(r[cfg_idx.get('ставканалогаусн', '')]).replace('%', '').replace(',', '.')) or 0
             usn = usn * 100 if 0 < usn < 1 else usn
 
             # --- режим налогообложения ---
@@ -570,7 +573,7 @@ def fill_planned_indicators():
             sal_rows, sal_idx = read_rows(ss.sheets[SHEET_SAL])
             for r in sal_rows:
                 salary[r[sal_idx['организация']]] = dict(
-                    fot=parse_money(r[sal_idx['фот']]),
+                    fot=parse_money(r[sal_idx['фот']]) or 0,
                     mode=str(r[sal_idx['режим_зп']]).strip())
 
         other = {}
@@ -586,7 +589,7 @@ def fill_planned_indicators():
             # Суммируем по каждой организации все "Расходы"
             for r in oth_rows:
                 org = r[oth_idx['организация']]
-                val = parse_money(r[oth_idx['расходы']])
+                val = parse_money(r[oth_idx['расходы']]) or 0
                 if org not in other:
                     other[org] = 0
                 other[org] += val
