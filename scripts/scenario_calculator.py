@@ -82,10 +82,10 @@ def group_records(raw):
         if not isinstance(month, int) or not (1 <= month <= 12):
             continue
         org = row[idx[normalize('организация')]]
-        rev = parse_money(row[idx.get(normalize('выручка, ₽'), idx.get(normalize('выручка'), 0))])
-        mp  = parse_money(row[idx.get(normalize('расходы мп, ₽'), idx.get(normalize('расходы мп'), 0))])
-        cr  = parse_money(row[idx.get(normalize('себестоимостьпродажруб'), '')])
-        cn  = parse_money(row[idx.get(normalize('себестоимостьпродажбезндс'), '')])
+        rev = parse_money(row[idx.get(normalize('выручка, ₽'), idx.get(normalize('выручка'), 0))]) or 0
+        mp  = parse_money(row[idx.get(normalize('расходы мп, ₽'), idx.get(normalize('расходы мп'), 0))]) or 0
+        cr  = parse_money(row[idx.get(normalize('себестоимостьпродажруб'), '')]) or 0
+        cn  = parse_money(row[idx.get(normalize('себестоимостьпродажбезндс'), '')]) or 0
         key = (org, month)
         if key not in groups:
             groups[key] = dict(org=org, month=month, rev=0, mp=0, cr=0, cn=0)
@@ -107,8 +107,8 @@ def make_cfg_dict(cfg_rows):
         cfg_dict[org] = {
             'orig_mode': str(row[idx.get(normalize('режимналогооблnew'), '')]).strip() or 'ОСНО',
             'consolidation': str(row[idx.get(normalize('консолидация'), '')]).strip().lower() == 'да',
-            'nds_rate': parse_money(str(row[idx.get(normalize('ставка ндс'), '')]).replace('%', '').replace(',', '.')),
-            'usn_rate': parse_money(str(row[idx.get(normalize('ставканалогаусн'), '')]).replace('%', '').replace(',', '.')),
+            'nds_rate': parse_money(str(row[idx.get(normalize('ставка ндс'), '')]).replace('%', '').replace(',', '.')) or 0,
+            'usn_rate': parse_money(str(row[idx.get(normalize('ставканалогаусн'), '')]).replace('%', '').replace(',', '.')) or 0,
             'type': str(row[idx.get(normalize('тип_организации'), '')]).strip() or 'ООО'
         }
     return cfg_dict
@@ -122,7 +122,7 @@ def make_salary_dict(sal_rows):
     for row in sal_rows[1:]:
         org = row[idx[normalize('организация')]]
         salary_dict[org] = {
-            'fot': parse_money(row[idx.get(normalize('фот'), '')]),
+            'fot': parse_money(row[idx.get(normalize('фот'), '')]) or 0,
             'mode': str(row[idx.get(normalize('режим_зп'), '')]).strip()
         }
     return salary_dict
@@ -135,7 +135,7 @@ def make_other_dict(oth_rows):
     other_dict = {}
     for row in oth_rows[1:]:
         org = row[idx[normalize('организация')]]
-        val = parse_money(row[idx.get(normalize('прочие'), 1)])  # если нет — 1-я колонка
+        val = parse_money(row[idx.get(normalize('прочие'), 1)]) or 0  # если нет — 1-я колонка
         other_dict[org] = val
     return other_dict
 
