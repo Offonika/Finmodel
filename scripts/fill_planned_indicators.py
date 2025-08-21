@@ -20,10 +20,10 @@ import argparse
 import xlwings as xw
 import logging
 from pathlib import Path
-import ctypes      # <-- ДОБАВЬТЕ наверху рядом с os, sys …
-from ctypes import wintypes
+import ctypes  # noqa: F401  # <-- ДОБАВЬТЕ наверху рядом с os, sys …
+from ctypes import wintypes  # noqa: F401
 
-from scripts.utils import ensure_interpreter_path
+from scripts.utils import ensure_interpreter_path  # noqa: F401
 
 # Флаг отладки по месяцам. Значение может быть переопределено
 # через аргументы командной строки в ``parse_args``.
@@ -244,8 +244,18 @@ def log_nds(month, org, prev, curr, mode, rate, lvl):
 
 
 def full_cogs(cn, nds):
-    """Return cost including non-refundable VAT for reduced rates."""
-    return cn * (1 + nds / 100)
+    """Return cost including non-deductible VAT difference.
+
+    Calculates cost of goods sold (Cn) including only the portion of VAT
+    that cannot be reclaimed. The model assumes input VAT of 20%. For sales
+    with a reduced VAT rate, only the difference between 20% and the applied
+    rate is added to cost. When the VAT rate is 20% or higher the cost is
+    returned unchanged.
+    """
+
+    if nds >= 20:
+        return cn
+    return cn * (1 + (20 - nds) / 100)
 
 
 def _calc_row(
