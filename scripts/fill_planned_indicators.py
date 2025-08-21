@@ -127,6 +127,8 @@ def _attach_open_wb(fullname: Path):
 
 
 def get_workbook():
+    if not EXCEL_PATH.exists():
+        raise FileNotFoundError(EXCEL_PATH)
     # 1) пробуем подцепиться к уже открытому файлу
     try:
         wb = _attach_open_wb(EXCEL_PATH)
@@ -515,8 +517,8 @@ def fill_planned_indicators():
                 mp=parse_money(r[wb_idx['расходы мп, ₽']]),
                 cr=parse_money(r[wb_idx['себестоимостьпродажруб']]),
                 cn=parse_money(r[wb_idx['себестоимостьпродажбезндс']]),
-                ct=parse_money(r[tax_col_wb]) if tax_col_wb is not None else 0,
-                ct_wo=parse_money(r[tax_wo_col_wb]) if tax_wo_col_wb is not None else 0
+                ct=parse_money(r[tax_col_wb]) if tax_col_wb is not None else None,
+                ct_wo=parse_money(r[tax_wo_col_wb]) if tax_wo_col_wb is not None else None
             ))
 
         if not rows:
@@ -621,10 +623,14 @@ def fill_planned_indicators():
             k = (r['org'], r['month'])
             g = grouped.setdefault(
                 k,
-                dict(org=r['org'], month=r['month'], rev=0, mp=0, cr=0, cn=0, ct=0, ct_wo=0)
+                dict(org=r['org'], month=r['month'], rev=0, mp=0, cr=0, cn=0)
             )
-            for f in ('rev', 'mp', 'cr', 'cn', 'ct', 'ct_wo'):
+            for f in ('rev', 'mp', 'cr', 'cn'):
                 g[f] += r.get(f, 0)
+            for f in ('ct', 'ct_wo'):
+                val = r.get(f)
+                if val is not None:
+                    g[f] = g.get(f, 0) + val
 
         records = sorted(grouped.values(), key=lambda x: x['month'])
 
@@ -725,8 +731,10 @@ def fill_planned_indicators():
             g['cn'] = cost_base
 
             cost_sales = cost_base
-            cost_tax = g.get('ct', full_cogs(cost_base, nds))
-            cost_tax_wo = g.get('ct_wo', cost_base)
+            ct_val = g.get('ct')
+            cost_tax = ct_val if ct_val is not None else full_cogs(cost_base, nds)
+            ct_wo_val = g.get('ct_wo')
+            cost_tax_wo = ct_wo_val if ct_wo_val is not None else cost_base
             ebit_mgmt = revN - (cost_sales + mpNet + labor_exp + esn + oth_cost)
             if mode_eff == 'Доходы-Расходы':
                 ebit_tax = revN - (cost_tax + mpGross + oklad_of + esn + oth_cost)
