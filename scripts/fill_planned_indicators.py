@@ -20,6 +20,8 @@ import argparse
 import xlwings as xw
 import logging
 from pathlib import Path
+import ctypes      # <-- ДОБАВЬТЕ наверху рядом с os, sys …
+from ctypes import wintypes
 
 from scripts.utils import ensure_interpreter_path
 
@@ -53,7 +55,16 @@ ARGS = parse_args()
 
 # ---------- 4. Пути ------------------------------------------------------
 
-EXCEL_PATH = PROJECT_DIR / ARGS.file
+
+
+def _excel_path(fname: str) -> Path:
+    """Относительный → к PROJECT_DIR, абсолютный оставляем как есть"""
+    p = Path(fname)
+    return p if p.is_absolute() else PROJECT_DIR / p
+
+EXCEL_PATH = _excel_path(ARGS.file)            # ← единственное место,
+                                               #   где вычисляем путь
+
 
 
 # ---------- 5. Логирование в файл ----------------------------------------
@@ -71,12 +82,11 @@ logging.basicConfig(
 def log_info(msg):
     print(msg)
     logging.info(msg)
-
+def log_warn(msg):            # короткий alias
+    print('⚠️ ', msg)
+    logging.warning(msg)
 # ---------- 6. Флаг отладки по месяцам -----------------------------------
 # значение устанавливается в ``parse_args``
-
-
-
 
 
 # ---------- 2. Пути и имена листов ----------------------------------------
@@ -94,24 +104,42 @@ TABLE_STYLE = 'TableStyleMedium7'          # зелёный Medium 7
 LIMIT_GROSS_USN = 450_000_000              # ₽
 
 # ---------- 3. Вспомогательные функции ------------------------------------
-def get_workbook():
-    """Return ``(wb, app)``. ``app`` is ``None`` when called from Excel."""
-    ensure_interpreter_path()
-    try:
-        wb = xw.Book.caller()
-        app = None
-        log_info("✅ Запуск из Excel: использую текущую книгу.")
-    except Exception:
-        if not EXCEL_PATH.exists():
-            log_info(f"❌ Workbook not found: {EXCEL_PATH}")
-            raise FileNotFoundError(f"Workbook not found: {EXCEL_PATH}")
-        log_info("🔹 Консольный режим: открываю книгу отдельно.")
-        app = xw.App(visible=False, add_book=False)
-        wb = app.books.open(EXCEL_PATH, read_only=False)
-        log_info(f"→ Открыт файл: {EXCEL_PATH}")
-    return wb, app
+def _safe_books():
+    ok = []
+    for wb in xw.books:
+        try:
+            _ = wb.name
+            ok.append(wb)
+        except Exception:
+            continue
+    return ok
 
-# Backward compatibility
+
+def _attach_open_wb(fullname: Path):
+    fullname = fullname.resolve()
+    for wb in _safe_books():
+        try:
+            if Path(wb.fullname).resolve() == fullname:
+                return wb
+        except Exception:
+            continue
+    raise KeyError(f'{fullname} not open')
+
+
+def get_workbook():
+    # 1) пробуем подцепиться к уже открытому файлу
+    try:
+        wb = _attach_open_wb(EXCEL_PATH)
+        log_info(f'🔗 Attached to open workbook: {wb.fullname}')
+        return wb, None
+    except KeyError:
+        pass            # файла действительно нет в действующих окнах
+
+    # 2) резервный путь — открываем скрытую копию
+    log_info('ℹ️  No open workbook found – opening hidden copy')
+    app = xw.App(visible=False, add_book=False)
+    wb  = app.books.open(EXCEL_PATH, read_only=False)
+    return wb, app
 open_wb = get_workbook
 
 def parse_money(v):
@@ -1124,25 +1152,53 @@ def fill_planned_indicators():
                 )
 
         consolidate_osno_tax(rows_out, row_meta)
+        log_info(f"[WRITE] rows_out len = {len(rows_out)}")
 
         # === 4.9 Запись в Excel ====================================
         
+# ------ ищем/создаём лист --------------------------------
+        # === 4.9 Запись в Excel ====================================
+
+        # ------ ищем/создаём лист ---------------------------------
         target = None
         for sht in ss.sheets:
-                clean = sht.name.replace('\u200b', '').strip()   # убираем нулевой-ширины пробелы
-                if clean == SHEET_OUT:
-                    target = sht
-                    break
+            clean = sht.name.replace('\u200b', '').strip()
+            if clean == SHEET_OUT:
+                target = sht
+                break
 
-        if target is None:                       # листа нет — создаём
-                target = ss.sheets.add(SHEET_OUT)
+        if target is None:
+            target = ss.sheets.add(SHEET_OUT)
+            log_info("[WRITE] лист создан")
+        else:
+            log_info("[WRITE] найден существующий лист")
 
         sh = target
-        sh.clear()                          # очищаем старые данные
+        sh.clear()                           # очищаем старые данные
+        log_info("[WRITE] лист очищен")
 
+        # ------ пишем заголовок + данные --------------------------
         sh.range(1, 1).value = headers
+        log_info("[WRITE] заголовок записан")
+
         if rows_out:
             sh.range(2, 1).value = rows_out
+            log_info(f"[WRITE] данные записаны: {len(rows_out)} строк")
+        else:
+            log_warn("[WRITE] rows_out пуст – ничего не пишем!")
+
+        # ------ проверяем физический «хвост» таблицы --------------
+        last_row = sh.range(1, 1).end('down').row
+        last_col = sh.range(1, 1).end('right').column
+        log_info(f"[WRITE] last_row={last_row}, last_col={last_col}")
+
+        # ------ создаём / обновляем умную таблицу -----------------
+        screen, calc = wb.app.screen_updating, wb.app.calculation
+        events       = wb.app.enable_events
+        wb.app.screen_updating = False
+        wb.app.enable_events   = False
+        wb.app.calculation     = 'manual'
+
 
         # ------ создаём / обновляем умную таблицу (оптимизировано) ------
        
@@ -1160,16 +1216,21 @@ def fill_planned_indicators():
 
             # 2) удалить старую PlannedIndicatorsTbl, если была
             for lo in list(sh.api.ListObjects):
+                log_info(f"[WRITE] найден ListObject: {lo.Name}")
                 if lo.Name == TABLE_NAME:
                     lo.Delete()
+                    log_info("[WRITE] старый ListObject удалён")
 
-            # 3) создать новую ListObject без TotalsRow
-            lo = sh.api.ListObjects.Add(1, lo_range, None, 1)
-            lo.Name, lo.TableStyle = TABLE_NAME, TABLE_STYLE   # стиль Medium 7
-            # fmt_fin = '#,##0 [$₽-419];[Red]-#,##0 [$₽-419];-'
+            # 3) создать новую ListObject
+            try:
+                lo = sh.api.ListObjects.Add(1, lo_range, None, 1)
+                lo.Name, lo.TableStyle = TABLE_NAME, TABLE_STYLE
+                log_info("[WRITE] новый ListObject создан")
+            except Exception as e:
+                log_warn(f"[WRITE] ошибка создания ListObject: {e!r}")
+                raise
 
-
-           
+                    
             
             # 4) форматируем все ₽-колонки единым вызовом
             # fmt = fmt_fin
@@ -1240,8 +1301,10 @@ def fill_planned_indicators():
 
     finally:
         if wb:
+            log_info("[WRITE] сохраняем книгу…")   # ← вот здесь
             wb.save()
-            if app:
+
+            if app:          # закрываем «скрытую» копию Excel-App
                 wb.close()
                 app.quit()
 
