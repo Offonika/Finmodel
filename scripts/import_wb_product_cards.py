@@ -20,8 +20,28 @@ HEADERS = [
 API_URL = 'https://content-api.wildberries.ru/content/v2/get/cards/list?locale=ru'
 LIMIT = 100
 
+_TOKEN_REMOVE_CHARS = "\ufeff\n\r\"' \xa0"
+_TOKEN_TRANSLATION = str.maketrans('', '', _TOKEN_REMOVE_CHARS)
+
 def get_idx(header_row):
     return {h.strip(): i for i, h in enumerate(header_row)}
+
+
+def _clean_token(token_raw):
+    if token_raw is None:
+        token = ''
+    elif isinstance(token_raw, bytes):
+        token = token_raw.decode('latin-1')
+    else:
+        token = str(token_raw)
+    token = token.translate(_TOKEN_TRANSLATION)
+    if not token:
+        return ''
+    try:
+        token.encode('latin-1')
+    except UnicodeEncodeError as exc:
+        raise ValueError('Token contains non latin-1 characters') from exc
+    return token
 
 def main():
     print('=== START import_wb_product_cards ===')
@@ -69,10 +89,17 @@ def main():
     allCards = []
     for i, row in enumerate(settings):
         org = row[idx['Организация']]
-        token = row[idx['Token_WB']]
         print(f'--- Организация "{org}"')
-        if not org or not token:
-            print('Строка пропущена (нет org или token)')
+        if not org:
+            print('Строка пропущена (нет org)')
+            continue
+        try:
+            token = _clean_token(row[idx['Token_WB']])
+        except Exception:
+            print(f'❌ Некорректный Token_WB у организации "{org}"')
+            continue
+        if not token:
+            print(f'❌ Некорректный Token_WB у организации "{org}"')
             continue
         cursor = None
         page = 0
