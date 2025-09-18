@@ -3,6 +3,8 @@ import requests
 import sys
 import os
 import time
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 print("==== PYTHONPATH ====")
 print(sys.path)
 print("==== WORKDIR ====")
@@ -19,6 +21,21 @@ HEADERS = [
 ]
 API_URL = 'https://content-api.wildberries.ru/content/v2/get/cards/list?locale=ru'
 LIMIT = 100
+
+
+def _session_with_retries():
+    session = requests.Session()
+    retry = Retry(
+        total=5,
+        backoff_factor=1,
+        status_forcelist=[429, 500, 501, 502, 503, 504],
+        allowed_methods=frozenset(["GET", "POST"]),
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount('https://', adapter)
+    session.mount('http://', adapter)
+    return session
+
 
 def get_idx(header_row):
     return {h.strip(): i for i, h in enumerate(header_row)}
@@ -71,66 +88,78 @@ def main():
         org = row[idx['Организация']]
         token = row[idx['Token_WB']]
         print(f'--- Организация "{org}"')
-        if not org or not token:
+        token_clean = str(token).strip() if token is not None else ''
+        if token_clean.lower() == 'nan':
+            token_clean = ''
+        if not org or not token_clean:
             print('Строка пропущена (нет org или token)')
             continue
         cursor = None
         page = 0
         existSet = set()
-        while True:
-            page += 1
-            payload = {
-                'settings': {
-                    'cursor': cursor if cursor else {'limit': LIMIT},
-                    'filter': {'withPhoto': -1}
+        session = _session_with_retries()
+        headers = {
+            'Authorization': token_clean,
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'User-Agent': 'FinmodelWB/1.0',
+        }
+        try:
+            while True:
+                page += 1
+                payload = {
+                    'settings': {
+                        'cursor': cursor if cursor else {'limit': LIMIT},
+                        'filter': {'withPhoto': -1}
+                    }
                 }
-            }
-            headers = {'Authorization': token}
-            try:
-                resp = requests.post(API_URL, json=payload, headers=headers, timeout=30)
-            except Exception as e:
-                print(f'❌ Сетевая ошибка: {e}, попытка {page}')
-                time.sleep(10)
-                continue
+                try:
+                    resp = session.post(API_URL, json=payload, headers=headers, timeout=60)
+                except Exception as e:
+                    print(f'❌ Сетевая ошибка: {e}, попытка {page}')
+                    time.sleep(10)
+                    continue
 
-            print(f'HTTP {resp.status_code}')
-            if resp.status_code != 200:
-                print(f'❌ API {resp.status_code}: {resp.text}')
-                break
-            data = resp.json()
-            cards = data.get('cards', [])
-            print(f'Получено карточек: {len(cards)}')
-            for c in cards:
-                nm = str(c.get('nmID', ''))
-                if nm and nm not in existSet:
-                    width = c.get('dimensions', {}).get('width', '')
-                    height = c.get('dimensions', {}).get('height', '')
-                    length = c.get('dimensions', {}).get('length', '')
-                    # Считаем объем, если все размеры есть и являются числами
-                    try:
-                        vol_ltr = float(width) * float(height) * float(length) / 1000
-                        vol_ltr = round(vol_ltr, 3)
-                    except Exception:
-                        vol_ltr = ''
-                    allCards.append([
-                        org,
-                        nm,
-                        c.get('vendorCode', ''),
-                        c.get('brand', ''),
-                        c.get('title', ''),
-                        c.get('subjectName', ''),
-                        width, height, length,
-                        c.get('dimensions', {}).get('weightBrutto', ''),
-                        vol_ltr
-                    ])
-                    existSet.add(nm)
+                print(f'HTTP {resp.status_code}')
+                if resp.status_code != 200:
+                    print(f'❌ API {resp.status_code}: {resp.text}')
+                    break
+                data = resp.json()
+                cards = data.get('cards', [])
+                print(f'Получено карточек: {len(cards)}')
+                for c in cards:
+                    nm = str(c.get('nmID', ''))
+                    if nm and nm not in existSet:
+                        width = c.get('dimensions', {}).get('width', '')
+                        height = c.get('dimensions', {}).get('height', '')
+                        length = c.get('dimensions', {}).get('length', '')
+                        # Считаем объем, если все размеры есть и являются числами
+                        try:
+                            vol_ltr = float(width) * float(height) * float(length) / 1000
+                            vol_ltr = round(vol_ltr, 3)
+                        except Exception:
+                            vol_ltr = ''
+                        allCards.append([
+                            org,
+                            nm,
+                            c.get('vendorCode', ''),
+                            c.get('brand', ''),
+                            c.get('title', ''),
+                            c.get('subjectName', ''),
+                            width, height, length,
+                            c.get('dimensions', {}).get('weightBrutto', ''),
+                            vol_ltr
+                        ])
+                        existSet.add(nm)
 
-            cur = data.get('cursor', {})
-            if cur.get('total') is None or cur.get('total', 0) < LIMIT:
-                print('Пагинация завершена')
-                break
-            cursor = {k: cur[k] for k in ('updatedAt','nmID') if k in cur}
-            cursor['limit'] = LIMIT
+                cur = data.get('cursor', {})
+                if cur.get('total') is None or cur.get('total', 0) < LIMIT:
+                    print('Пагинация завершена')
+                    break
+                cursor = {k: cur[k] for k in ('updatedAt','nmID') if k in cur}
+                cursor['limit'] = LIMIT
+        finally:
+            session.close()
 
     if allCards:
         sht_prod.range((2, 1)).value = allCards
