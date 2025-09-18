@@ -75,6 +75,37 @@ def get_idx(header_row):
     return {h.strip(): i for i, h in enumerate(header_row)}
 
 
+def _normalize_row(row: Any, expected_length: int) -> list[Any]:
+    if isinstance(row, list):
+        values = row.copy()
+    elif isinstance(row, tuple):
+        values = list(row)
+    elif row is None:
+        values = []
+    else:
+        values = [row]
+
+    if len(values) < expected_length:
+        values.extend([None] * (expected_length - len(values)))
+    return values
+
+
+def _is_effectively_empty(row: Any) -> bool:
+    if row is None:
+        return True
+
+    iterable = row if isinstance(row, (list, tuple)) else [row]
+    for value in iterable:
+        if value is None:
+            continue
+        if isinstance(value, str):
+            if value.strip():
+                return False
+        else:
+            return False
+    return True
+
+
 @dataclass
 class TokenCleanResult:
     token: str | None
@@ -195,22 +226,34 @@ def main():
         sht_prod.range((1, col)).api.EntireColumn.AutoFit()
     LOGGER.debug('Автоподбор ширины колонок выполнен')
 
-    cfgHdr = sht_set.range('A1').expand('right').value
+    header_range = sht_set.range('A1').expand('right')
+    cfgHdr_raw = header_range.value
+    cfgHdr = cfgHdr_raw if isinstance(cfgHdr_raw, list) else [cfgHdr_raw]
     LOGGER.debug('Загружена шапка листа настроек | header=%s', cfgHdr)
     idx = get_idx(cfgHdr)
     if 'Организация' not in idx or 'Token_WB' not in idx:
         LOGGER.error('В листе настроек отсутствуют обязательные колонки «Организация» и/или «Token_WB»')
         return
 
-    org_col = idx['Организация']
-    org_values = sht_set.range((2, org_col+1), (sht_set.cells.last_cell.row, org_col+1)).options(ndim=1).value
-    org_rows_count = next((i for i, val in enumerate(org_values) if not val), len(org_values))
-    if org_rows_count == 0:
+    last_col = len(cfgHdr)
+    used_range = sht_set.used_range
+    last_row = max(getattr(used_range.last_cell, 'row', 1), 1)
+    if last_row < 2:
         LOGGER.info('Нет организаций для обработки')
         return
 
-    last_col = len(cfgHdr)
-    settings = sht_set.range((2,1), (org_rows_count+1, last_col)).value
+    settings_range = sht_set.range((2, 1), (last_row, last_col))
+    settings_raw = settings_range.options(ndim=2).value
+    settings_rows = [
+        _normalize_row(row, last_col) for row in (settings_raw or [])
+    ]
+
+    org_col = idx['Организация']
+    organizations_column_address = (
+        sht_set.range((2, org_col + 1), (last_row, org_col + 1)).address
+        if last_row >= 2
+        else ''
+    )
 
     LOGGER.info(
         'Стартовое окружение | cwd=%s python=%s log_path=%s detected_ranges=%s',
@@ -218,21 +261,25 @@ def main():
         sys.version.replace('\n', ' '),
         str(LOG_PATH) if LOG_PATH else '',
         {
-            'settings_header': sht_set.range('A1').expand('right').address,
-            'organizations_column': sht_set.range(
-                (2, org_col + 1),
-                (org_rows_count + 1, org_col + 1),
-            ).address,
+            'settings_header': header_range.address,
+            'settings_table': sht_set.range((1, 1), (last_row, last_col)).address,
+            'organizations_column': organizations_column_address,
             'products_header': sht_prod.range((1, 1), (1, len(HEADERS))).address,
         },
     )
 
     allCards = []
-    for i, row in enumerate(settings):
+    has_non_empty_rows = False
+    for row_idx, row in enumerate(settings_rows, start=2):
+        if _is_effectively_empty(row):
+            LOGGER.info('Пропуск пустой строки настроек | row_index=%s', row_idx)
+            continue
+
+        has_non_empty_rows = True
         org = row[idx['Организация']]
         token_raw = row[idx['Token_WB']]
         org_name = '' if org is None else str(org)
-        LOGGER.info('Начало обработки организации | organization=%s row_index=%s', org_name, i + 2)
+        LOGGER.info('Начало обработки организации | organization=%s row_index=%s', org_name, row_idx)
         token_result = _clean_token(token_raw)
         safe_details = _sanitize_token_details(token_result.details)
         if token_result.error:
@@ -367,6 +414,10 @@ def main():
         finally:
             if session is not None:
                 session.close()
+
+    if not has_non_empty_rows:
+        LOGGER.info('Нет организаций для обработки')
+        return
 
     if allCards:
         sht_prod.range((2, 1)).value = allCards
