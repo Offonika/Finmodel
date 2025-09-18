@@ -40,6 +40,26 @@ def _session_with_retries():
 def get_idx(header_row):
     return {h.strip(): i for i, h in enumerate(header_row)}
 
+
+def _clean_token(token_raw):
+    if token_raw is None:
+        return ''
+
+    raw_string = str(token_raw)
+    chars_to_remove = " \t\r\n\"'\u00a0\ufeff"
+    translation_table = str.maketrans('', '', chars_to_remove)
+    cleaned = raw_string.translate(translation_table).strip()
+
+    if cleaned.casefold() in {'', 'nan', 'none'}:
+        return ''
+
+    try:
+        cleaned.encode('latin-1')
+    except UnicodeEncodeError as exc:
+        raise ValueError('Token_WB содержит недопустимые символы') from exc
+
+    return cleaned
+
 def main():
     print('=== START import_wb_product_cards ===')
     wb = xw.Book.caller()  # <-- ВАЖНО!
@@ -86,13 +106,19 @@ def main():
     allCards = []
     for i, row in enumerate(settings):
         org = row[idx['Организация']]
-        token = row[idx['Token_WB']]
-        print(f'--- Организация "{org}"')
-        token_clean = str(token).strip() if token is not None else ''
-        if token_clean.lower() == 'nan':
-            token_clean = ''
-        if not org or not token_clean:
-            print('Строка пропущена (нет org или token)')
+        token_raw = row[idx['Token_WB']]
+        org_name = '' if org is None else str(org)
+        print(f'--- Организация "{org_name}"')
+        try:
+            token_clean = _clean_token(token_raw)
+        except ValueError:
+            print(f'❌ Некорректный Token_WB у организации "{org_name}"')
+            continue
+        if not token_clean:
+            print(f'❌ Некорректный Token_WB у организации "{org_name}"')
+            continue
+        if not org:
+            print('Строка пропущена (нет org)')
             continue
         cursor = None
         page = 0
